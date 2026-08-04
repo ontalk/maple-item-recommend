@@ -1,6 +1,4 @@
 // 추천 알고리즘 엔진
-// 최소 비용으로 최대 전투력(스탯) 상승을 위한 장비 강화 추천
-
 import type { 
   CharacterItem,
   EquipmentRecommendation, 
@@ -19,58 +17,37 @@ import {
   POTENTIAL_GRADE_ORDER,
   POTENTIAL_GRADE_AVG_STAT 
 } from '@/lib/potential-data';
-import { parseItemOptions, getMainStatValue } from '@/lib/maple-api';
+import { parseItemOptions } from '@/lib/maple-api';
 
-// 장비 부위 정규화 (API 응답 -> 내부 표준)
 function normalizeEquipmentPart(part: string): string {
   const partMap: Record<string, string> = {
-    '무기': '무기',
-    '보조무기': '보조무기',
-    '엠블렘': '엠블렘',
-    '모자': '모자',
-    '상의': '상의',
-    '하의': '하의',
-    '장갑': '장갑',
-    '신발': '신발',
-    '망토': '망토',
-    '벨트': '벨트',
-    '어깨장식': '어깨장식',
-    '반지1': '반지',
-    '반지2': '반지',
-    '반지3': '반지',
-    '반지4': '반지',
-    '펜던트1': '펜던트',
-    '펜던트2': '펜던트',
-    '귀고리': '귀고리',
-    '심볼': '심볼',
-    '훈장': '훈장',
-    '포켓': '포켓',
-    '기계심장': '기계심장',
-    '뱃지': '뱃지',
+    '무기': '무기', '보조무기': '보조무기', '엠블렘': '엠블렘', '모자': '모자',
+    '상의': '상의', '하의': '하의', '장갑': '장갑', '신발': '신발', '망토': '망토',
+    '벨트': '벨트', '어깨장식': '어깨장식', '반지1': '반지', '반지2': '반지',
+    '반지3': '반지', '반지4': '반지', '펜던트1': '펜던트', '펜던트2': '펜던트',
+    '귀고리': '귀고리', '심볼': '심볼', '훈장': '훈장', '포켓': '포켓',
+    '기계심장': '기계심장', '뱃지': '뱃지',
   };
   return partMap[part] || part;
 }
 
-// 장비 우선순위 인덱스 가져오기
 function getEquipmentPriorityIndex(part: string): number {
   const normalized = normalizeEquipmentPart(part);
   const index = (EQUIPMENT_PRIORITY as readonly string[] | string[])?.indexOf(normalized) ?? -1;
   return index >= 0 ? index : 999;
 }
 
-// 메인 스탯 결정
 function getMainStat(characterClass: string): string {
   return (CLASS_MAIN_STAT as Record<string, string>)[characterClass] || '주스탯';
 }
 
-// 스타포스 강화 추천 옵션 생성
 function generateStarforceRecommendations(
   item: CharacterItem,
   mainStat: string,
   equipType: string
 ): RecommendationOption[] {
   const recommendations: RecommendationOption[] = [];
-  const currentStar = item.item_starforce || 0;
+  const currentStar = Number(item.item_starforce || 0);
   const maxStarByEquip = (MAX_STARFORCE_BY_TYPE as Record<string, number>)[equipType] || 25;
   const maxStar = Math.min(item.item_max_starforce || 25, maxStarByEquip);
   const equipLevel = item.item_equip_level || 150;
@@ -120,7 +97,6 @@ function generateStarforceRecommendations(
   return recommendations;
 }
 
-// 잠재옵션 등업 추천
 function generatePotentialUpgradeRecommendations(
   item: CharacterItem,
   mainStat: string,
@@ -168,7 +144,6 @@ function generatePotentialUpgradeRecommendations(
   return recommendations;
 }
 
-// 에디셔널 잠재옵션 추천
 function generateAdditionalPotentialRecommendations(
   item: CharacterItem,
   mainStat: string,
@@ -205,7 +180,6 @@ function generateAdditionalPotentialRecommendations(
   return recommendations;
 }
 
-// 전체 추천 생성 메인 함수
 export function generateRecommendations(character: {
   character_name: string;
   world_name: string;
@@ -223,6 +197,8 @@ export function generateRecommendations(character: {
 
   sortedItems.forEach((item: CharacterItem) => {
     const equipType = normalizeEquipmentPart(item.item_equipment_part);
+    // 💡 [핵심] 고유 슬롯 명칭(반지1, 반지2 등)을 가져옵니다.
+    const slotOrPart = item.item_slot || item.item_equipment_part;
     
     const allOptions: RecommendationOption[] = [
       ...generateStarforceRecommendations(item, mainStat, equipType),
@@ -243,12 +219,12 @@ export function generateRecommendations(character: {
     if (priorityIndex <= 3) priority = 'high';
     else if (priorityIndex <= 10) priority = 'medium';
     
-    if ((item.item_starforce || 0) < 10 || item.item_potential_option_grade === '레어') {
+    if (Number(item.item_starforce || 0) < 10 || item.item_potential_option_grade === '레어') {
       priority = priority === 'low' ? 'medium' : 'high';
     }
 
     let reason = '';
-    if ((item.item_starforce || 0) < 10) reason += '스타포스 낮음. ';
+    if (Number(item.item_starforce || 0) < 10) reason += '스타포스 낮음. ';
     if (item.item_potential_option_grade === '레어') reason += '잠재옵션 레어. ';
     if (!reason) reason = '현재 장비 양호, 추가 강화로 스탯 상승 가능.';
 
@@ -257,7 +233,7 @@ export function generateRecommendations(character: {
     }
 
     recommendations.push({
-      equipment_part: item.item_equipment_part,
+      equipment_part: slotOrPart, // 💡 "반지1", "반지2" 등의 슬롯 전달
       current_item: item,
       recommendations: topOptions,
       priority,

@@ -9,7 +9,6 @@ interface RecommendationResultProps {
   onNewSearch?: () => void;
 }
 
-// 메이플스토리 인게임 장비창 레이아웃 (5열)
 const SLOT_LAYOUT = [
   ['반지1', '', '모자', '', '엠블렘'],
   ['반지2', '', '얼굴장식', '', '뱃지'],
@@ -19,7 +18,6 @@ const SLOT_LAYOUT = [
   ['무기', '', '신발', '망토', '보조무기']
 ];
 
-// 숫자를 '1억 3,465만 4,058' 형태 한글로 변환
 function formatCombatPower(value: string | number): string {
   const num = typeof value === 'string' ? parseInt(value, 10) : value;
   if (isNaN(num) || num <= 0) return '0';
@@ -40,18 +38,26 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [targetPower, setTargetPower] = useState('');
 
-  // 💡 [핵심] 띄어쓰기/유사 이름을 유연하게 매칭하여 미장착 오류 방지
+  // 💡 [핵심] 정밀 매칭 알고리즘: 반지1~4, 펜던트2까지 완벽 찾아내기
   const getItemBySlot = (slotName: string) => {
     if (!slotName || !data?.recommendations) return null;
-    const cleanSlot = slotName.replace(/\s+/g, '').toLowerCase();
+    const cleanTarget = slotName.replace(/\s+/g, '').toLowerCase();
 
     return data.recommendations.find((rec: any) => {
-      const itemSlot = (rec.current_item?.item_slot || '').replace(/\s+/g, '').toLowerCase();
+      const item = rec.current_item;
+      if (!item) return false;
+
+      const itemSlot = (item.item_slot || '').replace(/\s+/g, '').toLowerCase();
       const equipPart = (rec.equipment_part || '').replace(/\s+/g, '').toLowerCase();
 
-      return itemSlot === cleanSlot || equipPart === cleanSlot ||
-        (cleanSlot.includes('포켓') && (itemSlot.includes('포켓') || equipPart.includes('포켓'))) ||
-        (cleanSlot.includes('기계') && (itemSlot.includes('기계') || equipPart.includes('기계')));
+      // 1. Exact match (예: "반지1" === "반지1")
+      if (itemSlot === cleanTarget || equipPart === cleanTarget) return true;
+
+      // 2. 띄어쓰기 예외 처리 (포켓 아이템, 기계 심장)
+      if (cleanTarget.includes('포켓') && (itemSlot.includes('포켓') || equipPart.includes('포켓'))) return true;
+      if (cleanTarget.includes('기계') && (itemSlot.includes('기계') || equipPart.includes('기계'))) return true;
+
+      return false;
     });
   };
 
@@ -70,7 +76,6 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
-      {/* 1. 상단 프로필 카드리뉴얼 (실제 아바타 및 스탯 적용) */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-5">
           <div className="w-24 h-24 bg-gray-50 rounded-2xl flex items-center justify-center p-1 border border-gray-200 overflow-hidden shadow-inner">
@@ -94,7 +99,6 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
           </div>
         </div>
 
-        {/* 목표 전투력 입력창 */}
         <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
           <span className="text-sm font-medium text-gray-600">🎯 목표 전투력</span>
           <input
@@ -111,7 +115,6 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
         </div>
       </div>
 
-      {/* 2. 메이플스토리 인게임 장비창 그리드 */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
           🎒 장비창 <span className="text-xs font-normal text-gray-400">— 아이템을 클릭하면 상세 추천이 표시됩니다.</span>
@@ -126,7 +129,7 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
 
               const itemData = getItemBySlot(slotName);
               const currentItem = itemData?.current_item;
-              const starforce = currentItem?.item_starforce || 0;
+              const starforce = Number(currentItem?.item_starforce || 0);
 
               return (
                 <div
@@ -169,7 +172,6 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
         </div>
       </div>
 
-      {/* 3. 클릭 시 떠오르는 상세 모달 팝업 */}
       {selectedItem && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
@@ -183,7 +185,6 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
             <h3 className="text-lg font-bold text-gray-900 mb-4">{selectedItem.equipment_part}</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 왼쪽: 현재 장비 스탯 카드 */}
               <div className="border border-emerald-500/30 bg-emerald-50/20 rounded-2xl p-4">
                 <span className="text-xs font-bold text-emerald-600 mb-2 inline-block">📦 현재 장비</span>
                 <div className="text-center pb-4 border-b border-gray-200/60">
@@ -191,7 +192,7 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
                   {selectedItem.current_item?.item_icon && (
                     <img src={selectedItem.current_item.item_icon} alt="" className="w-16 h-16 mx-auto my-2 object-contain drop-shadow" />
                   )}
-                  {selectedItem.current_item?.item_starforce > 0 && (
+                  {Number(selectedItem.current_item?.item_starforce || 0) > 0 && (
                     <span className="text-xs font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
                       ★{selectedItem.current_item.item_starforce}
                     </span>
@@ -227,7 +228,6 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
                 </div>
               </div>
 
-              {/* 오른쪽: 추천 가성비 강화 빌드 */}
               <div className="space-y-3">
                 <span className="text-xs font-bold text-amber-600 block">🎯 추천 스펙업 빌드</span>
                 
