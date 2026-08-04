@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/character/route.ts": {
+      "auth": false
+    }
+  }
+}
