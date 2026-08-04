@@ -15,12 +15,15 @@ export default function Home() {
     isLoading: false,
     error: null,
   });
+  const [lastSearchedName, setLastSearchedName] = useState('');
+  const [targetPower, setTargetPower] = useState('2');
 
-  const handleSearch = async (name: string) => {
+  const handleSearch = async (name: string, target = targetPower) => {
     setSearchData({ data: null, isLoading: true, error: null });
+    setLastSearchedName(name);
     
     try {
-      const response = await fetch(`/api/character?name=${encodeURIComponent(name)}`);
+      const response = await fetch(`/api/character?name=${encodeURIComponent(name)}&target=${encodeURIComponent(target)}`);
       const result = await response.json();
       
       if (!response.ok) {
@@ -39,6 +42,11 @@ export default function Home() {
 
   const handleNewSearch = () => {
     setSearchData({ data: null, isLoading: false, error: null });
+  };
+
+  const handleTargetApply = (nextTarget: string) => {
+    setTargetPower(nextTarget);
+    if (lastSearchedName) handleSearch(lastSearchedName, nextTarget);
   };
 
   return (
@@ -97,6 +105,8 @@ export default function Home() {
             isLoading={searchData.isLoading}
             error={searchData.error}
             onNewSearch={handleNewSearch}
+            targetPower={targetPower}
+            onTargetApply={handleTargetApply}
           />
         </div>
       </section>

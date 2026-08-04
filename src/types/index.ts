@@ -62,6 +62,27 @@ export interface EquipmentRecommendation {
   reason: string;
 }
 
+export interface BenchmarkItem {
+  equipment_part: string;
+  target_item: string;
+  track: '여명 유지' | '칠흑 전환' | '공용';
+  target_starforce: number;
+  target_potential: string;
+  estimated_cost: number;
+  rationale: string;
+}
+
+export interface BenchmarkComparison {
+  target_combat_power: number;
+  range_label: string;
+  source: 'template';
+  source_label: string;
+  dawn_items_equipped: string[];
+  black_items_equipped: string[];
+  recommended_track: '여명 유지' | '칠흑 전환' | '혼합';
+  minimum_plan: BenchmarkItem[];
+}
+
 export interface RecommendationOption {
   type: 'starforce' | 'potential' | 'additional_potential' | 'replace';
   action: string;
@@ -85,6 +106,7 @@ export interface RecommendationResponse {
   total_estimated_cost: number;
   recommendations: EquipmentRecommendation[];
   summary: RecommendationSummary;
+  benchmark: BenchmarkComparison;
 }
 
 export interface RecommendationSummary {

@@ -1,12 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import type { BenchmarkItem } from '@/types';
 
 interface RecommendationResultProps {
   data: any;
   isLoading?: boolean;
   error?: string | null;
   onNewSearch?: () => void;
+  targetPower: string;
+  onTargetApply: (target: string) => void;
 }
 
 const SLOT_LAYOUT = [
@@ -34,9 +37,9 @@ function formatCombatPower(value: string | number): string {
   return result.trim();
 }
 
-export default function RecommendationResult({ data, error, onNewSearch }: RecommendationResultProps) {
+export default function RecommendationResult({ data, error, onNewSearch, targetPower, onTargetApply }: RecommendationResultProps) {
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [targetPower, setTargetPower] = useState('2'); // 기본 목표 2억
+  const [draftTargetPower, setDraftTargetPower] = useState(targetPower);
 
   const getItemBySlot = (slotName: string) => {
     if (!slotName || !data?.recommendations) return null;
@@ -125,16 +128,52 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
           <input
             type="number"
             placeholder="2"
-            value={targetPower}
-            onChange={(e) => setTargetPower(e.target.value)}
+            value={draftTargetPower}
+            onChange={(e) => setDraftTargetPower(e.target.value)}
             className="w-20 px-2 py-1 text-sm bg-white border border-gray-300 rounded-lg text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
           <span className="text-sm font-bold text-gray-700">억</span>
-          <button className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-3.5 py-1.5 rounded-lg transition-colors shadow-sm">
+          <button onClick={() => onTargetApply(draftTargetPower)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-3.5 py-1.5 rounded-lg transition-colors shadow-sm">
             적용
           </button>
         </div>
       </div>
+
+      {data?.benchmark && (
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-bold text-amber-600">비교 기준 · {data.benchmark.range_label}</p>
+              <h2 className="mt-1 text-lg font-bold text-gray-900">최소 템세팅과 여명/칠흑 비교</h2>
+              <p className="mt-1 text-xs text-gray-500 max-w-3xl">{data.benchmark.source_label}</p>
+            </div>
+            <span className="w-fit rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">권장: {data.benchmark.recommended_track}</span>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+              <p className="text-xs font-bold text-amber-800">현재 여명 장비</p>
+              <p className="mt-1 text-sm text-gray-700">{data.benchmark.dawn_items_equipped.length ? data.benchmark.dawn_items_equipped.join(' · ') : '감지된 여명 장비가 없습니다.'}</p>
+              <p className="mt-2 text-xs text-gray-500">2억 목표에서는 세트 효과를 유지한 뒤, 예산과 해방·보스 진행도에 맞춰 칠흑으로 한 부위씩 바꾸는 흐름을 제시합니다.</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-bold text-slate-700">현재 칠흑 장비</p>
+              <p className="mt-1 text-sm text-gray-700">{data.benchmark.black_items_equipped.length ? data.benchmark.black_items_equipped.join(' · ') : '감지된 칠흑 장비가 없습니다.'}</p>
+              <p className="mt-2 text-xs text-gray-500">칠흑은 획득·작·거래 비용 편차가 커서, 최소 목표를 이미 충족한 뒤에 비교 대상으로 잡습니다.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {data.benchmark.minimum_plan.slice(0, 8).map((plan: BenchmarkItem) => (
+              <div key={`${plan.equipment_part}-${plan.target_item}`} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <p className="text-[11px] font-bold text-gray-500">{plan.equipment_part} · {plan.track}</p>
+                <p className="mt-1 text-sm font-bold text-gray-800">{plan.target_item}</p>
+                <p className="mt-1 text-[11px] text-gray-500">★{plan.target_starforce} / {plan.target_potential}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 2. 메이플스토리 인게임 장비창 그리드 */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">

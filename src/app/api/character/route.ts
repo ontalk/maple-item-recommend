@@ -65,6 +65,10 @@ function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const characterName = searchParams.get('name');
+  const requestedTarget = Number(searchParams.get('target') || 2);
+  const targetCombatPower = Number.isFinite(requestedTarget) && requestedTarget > 0
+    ? Math.round(requestedTarget * 100000000)
+    : 200000000;
 
   if (!characterName) {
     return NextResponse.json(
@@ -91,7 +95,7 @@ export async function GET(request: NextRequest) {
       character_item: character.equipment.map(convertEquipmentToCharacterItem),
     };
 
-    const recommendations = generateRecommendations(characterForRecommendation);
+    const recommendations = generateRecommendations(characterForRecommendation, targetCombatPower);
 
     return NextResponse.json({
       ...recommendations,
