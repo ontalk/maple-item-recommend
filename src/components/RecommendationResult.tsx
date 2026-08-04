@@ -2,6 +2,14 @@
 
 import { useState } from 'react';
 
+// 💡 [핵심] page.tsx에서 전달해주는 모든 Props 타입을 정의합니다.
+interface RecommendationResultProps {
+  data: any;
+  isLoading?: boolean;
+  error?: string | null;
+  onNewSearch?: () => void;
+}
+
 // 장비창 그리드 슬롯 배치 정의 (5열 기준 메이플스토리 장비창 레이아웃)
 const SLOT_LAYOUT = [
   ['반지1', '', '모자', '', '엠블렘'],
@@ -12,7 +20,12 @@ const SLOT_LAYOUT = [
   ['무기', '', '신발', '망토', '보조무기']
 ];
 
-export default function RecommendationResult({ data }: { data: any }) {
+export default function RecommendationResult({ 
+  data, 
+  isLoading, 
+  error, 
+  onNewSearch 
+}: RecommendationResultProps) {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [targetPower, setTargetPower] = useState('');
 
@@ -24,25 +37,40 @@ export default function RecommendationResult({ data }: { data: any }) {
     );
   };
 
+  if (error) {
+    return (
+      <div className="max-w-xl mx-auto p-6 bg-red-50 border border-red-200 rounded-2xl text-center">
+        <p className="text-red-600 font-bold mb-4">{error}</p>
+        {onNewSearch && (
+          <button 
+            onClick={onNewSearch}
+            className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-xl"
+          >
+            다시 검색하기
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       {/* 1. 상단 프로필 및 목표 전투력 영역 */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center p-2 border border-gray-200">
-            {/* 캐릭터 아이콘 혹은 기본 이미지 */}
             <span className="text-3xl">🧙‍♀️</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900">{data.character_name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{data?.character_name || '캐릭터'}</h1>
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md">실시간 조회</span>
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              Lv.260 · {data.world_name}
+              {data?.world_name || '메이플스토리'}
             </p>
             <p className="text-2xl font-extrabold text-amber-500 mt-1">
-              1억 3465만 4058 <span className="text-xs text-gray-400 font-normal">전투력</span>
+              스펙 분석 완료 <span className="text-xs text-gray-400 font-normal">전투력</span>
             </p>
           </div>
         </div>
@@ -93,14 +121,12 @@ export default function RecommendationResult({ data }: { data: any }) {
                   
                   {currentItem ? (
                     <>
-                      {/* 아이템 아이콘 */}
                       {currentItem.item_icon ? (
                         <img src={currentItem.item_icon} alt={currentItem.item_name} className="w-10 h-10 object-contain" />
                       ) : (
                         <div className="w-8 h-8 bg-gray-200 rounded-full" />
                       )}
 
-                      {/* 아이템 이름 & 스타포스 */}
                       <div className="text-center w-full truncate">
                         <p className="text-xs font-bold text-gray-800 truncate px-1">
                           {currentItem.item_name}
@@ -126,7 +152,6 @@ export default function RecommendationResult({ data }: { data: any }) {
       {selectedItem && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-            {/* 닫기 버튼 */}
             <button
               onClick={() => setSelectedItem(null)}
               className="absolute top-4 right-4 w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold transition-colors"
@@ -147,7 +172,6 @@ export default function RecommendationResult({ data }: { data: any }) {
                   )}
                 </div>
 
-                {/* 잠재옵션 목록 */}
                 <div className="mt-4 space-y-3 text-xs">
                   <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
                     <span className="font-bold text-emerald-600 block mb-1">
@@ -201,7 +225,6 @@ export default function RecommendationResult({ data }: { data: any }) {
               </div>
             </div>
 
-            {/* 하단 버튼 */}
             <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-gray-100">
               <button 
                 onClick={() => setSelectedItem(null)}
