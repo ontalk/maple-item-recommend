@@ -5,14 +5,10 @@ function getApiKey(): string {
   return apiKey || '';
 }
 
-// 💡 [핵심] 다른 파일들에서 import type으로 불러오는 타입들을 export 해줍니다.
 export type UnifiedItem = any;
 export type CharacterEquipment = any;
 export type CharacterFullInfo = any;
 
-/**
- * 아이템의 잠재옵션 텍스트를 파싱하여 스탯과 값으로 분리하는 헬퍼 함수
- */
 export function parseItemOptions(item: any) {
   const potentialOptions: Array<{ stat: string; value: number; isPercent: boolean }> = [];
   const additionalOptions: Array<{ stat: string; value: number; isPercent: boolean }> = [];
@@ -48,9 +44,6 @@ export function parseItemOptions(item: any) {
   return { potentialOptions, additionalOptions };
 }
 
-/**
- * 아이템의 메인 스탯 수치를 계산하는 헬퍼 함수
- */
 export function getMainStatValue(item: any, mainStat: string): number {
   if (!item) return 0;
   let total = 0;
@@ -62,12 +55,9 @@ export function getMainStatValue(item: any, mainStat: string): number {
       }
     });
   }
-  return total || 50; // 기본 스탯 가중치
+  return total || 50;
 }
 
-/**
- * 닉네임으로 OCID 조회 (한글 인코딩 400 방지 포함)
- */
 export async function getOcid(characterName: string): Promise<string | null> {
   try {
     const apiKey = getApiKey();
@@ -79,10 +69,7 @@ export async function getOcid(characterName: string): Promise<string | null> {
       next: { revalidate: 3600 },
     });
 
-    if (!response.ok) {
-      throw new Error(`OCID 조회 실패: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`OCID 조회 실패: ${response.status}`);
     const data = await response.json();
     return data.ocid;
   } catch (error) {
@@ -91,9 +78,38 @@ export async function getOcid(characterName: string): Promise<string | null> {
   }
 }
 
-/**
- * OCID로 착용 장비 정보 조회
- */
+// 💡 [신규] 캐릭터 기본 정보 (이미지, 레벨, 직업, 월드)
+export async function getCharacterBasic(ocid: string) {
+  try {
+    const apiKey = getApiKey();
+    const url = `${NEXON_API_BASE_URL}/character/basic?ocid=${ocid}`;
+    const response = await fetch(url, {
+      headers: { 'x-nxopen-api-key': apiKey },
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  }
+}
+
+// 💡 [신규] 캐릭터 스탯 정보 (전투력 추출용)
+export async function getCharacterStat(ocid: string) {
+  try {
+    const apiKey = getApiKey();
+    const url = `${NEXON_API_BASE_URL}/character/stat?ocid=${ocid}`;
+    const response = await fetch(url, {
+      headers: { 'x-nxopen-api-key': apiKey },
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function getCharacterEquipment(ocid: string) {
   try {
     const apiKey = getApiKey();
@@ -108,10 +124,7 @@ export async function getCharacterEquipment(ocid: string) {
       next: { revalidate: 3600 },
     });
 
-    if (!response.ok) {
-      throw new Error(`장비 정보 조회 실패: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`장비 정보 조회 실패: ${response.status}`);
     const data = await response.json();
     return data.item_equipment || [];
   } catch (error) {
@@ -120,22 +133,30 @@ export async function getCharacterEquipment(ocid: string) {
   }
 }
 
-/**
- * 캐릭터 정보 통합 함수
- */
 export async function getCharacterFullInfo(characterName: string) {
   try {
     const ocid = await getOcid(characterName);
     if (!ocid) return null;
 
-    const equipment = await getCharacterEquipment(ocid);
+    // 기본 정보, 스탯 정보, 장비 정보를 동시 호출
+    const [basic, statData, equipment] = await Promise.all([
+      getCharacterBasic(ocid),
+      getCharacterStat(ocid),
+      getCharacterEquipment(ocid)
+    ]);
+
+    // 전투력 값 찾기
+    const combatPowerStat = statData?.final_stat?.find((s: any) => s.stat_name === '전투력');
+    const combatPower = combatPowerStat ? combatPowerStat.stat_value : '0';
 
     return {
       basic: {
-        character_name: characterName,
-        world_name: '스카니아',
-        character_class: '전사',
-        character_level: 260,
+        character_name: basic?.character_name || characterName,
+        world_name: basic?.world_name || '스카니아',
+        character_class: basic?.character_class || '직업',
+        character_level: basic?.character_level || 0,
+        character_image: basic?.character_image || '',
+        combat_power: combatPower,
       },
       equipment: equipment,
     };
