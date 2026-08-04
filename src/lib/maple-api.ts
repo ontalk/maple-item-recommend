@@ -1,39 +1,85 @@
-// 넥슨 오픈 API 공통 통신 함수
 const NEXON_API_BASE_URL = 'https://open.api.nexon.com/maplestory/v1';
 
 function getApiKey(): string {
-  // Vercel 환경 변수 세팅 방식에 따라 두 형태 모두 지원하도록 처리
   const apiKey = process.env.NEXT_PUBLIC_MAPLE_API_KEY || process.env.MAPLE_API_KEY;
-  
-  if (!apiKey) {
-    console.error('❌ API 키가 존재하지 않습니다. Vercel Environment Variables를 확인해주세요.');
-  }
-  
   return apiKey || '';
 }
 
+// 💡 [핵심] 다른 파일들에서 import type으로 불러오는 타입들을 export 해줍니다.
+export type UnifiedItem = any;
+export type CharacterEquipment = any;
+export type CharacterFullInfo = any;
+
 /**
- * 닉네임으로 캐릭터 고유 식별자(OCID)를 조회합니다.
+ * 아이템의 잠재옵션 텍스트를 파싱하여 스탯과 값으로 분리하는 헬퍼 함수
+ */
+export function parseItemOptions(item: any) {
+  const potentialOptions: Array<{ stat: string; value: number; isPercent: boolean }> = [];
+  const additionalOptions: Array<{ stat: string; value: number; isPercent: boolean }> = [];
+
+  if (item?.item_potential_option) {
+    item.item_potential_option.forEach((opt: any) => {
+      const valStr = opt.potential_option_value || '';
+      const match = valStr.match(/(.+?)\s*\+?(\d+)%?/);
+      if (match) {
+        potentialOptions.push({
+          stat: match[1],
+          value: parseInt(match[2], 10) || 0,
+          isPercent: valStr.includes('%'),
+        });
+      }
+    });
+  }
+
+  if (item?.item_add_potential_option) {
+    item.item_add_potential_option.forEach((opt: any) => {
+      const valStr = opt.potential_option_value || '';
+      const match = valStr.match(/(.+?)\s*\+?(\d+)%?/);
+      if (match) {
+        additionalOptions.push({
+          stat: match[1],
+          value: parseInt(match[2], 10) || 0,
+          isPercent: valStr.includes('%'),
+        });
+      }
+    });
+  }
+
+  return { potentialOptions, additionalOptions };
+}
+
+/**
+ * 아이템의 메인 스탯 수치를 계산하는 헬퍼 함수
+ */
+export function getMainStatValue(item: any, mainStat: string): number {
+  if (!item) return 0;
+  let total = 0;
+  
+  if (Array.isArray(item.item_total_option)) {
+    item.item_total_option.forEach((opt: any) => {
+      if (opt.option_type === mainStat) {
+        total += Number(opt.option_value || 0);
+      }
+    });
+  }
+  return total || 50; // 기본 스탯 가중치
+}
+
+/**
+ * 닉네임으로 OCID 조회 (한글 인코딩 400 방지 포함)
  */
 export async function getOcid(characterName: string): Promise<string | null> {
   try {
     const apiKey = getApiKey();
-    
-    // 💡 핵심 수정: 한글 닉네임은 반드시 encodeURIComponent로 인코딩해야 400 에러가 나지 않습니다.
     const encodedName = encodeURIComponent(characterName);
     const url = `${NEXON_API_BASE_URL}/id?character_name=${encodedName}`;
 
     const response = await fetch(url, {
-      headers: {
-        'x-nxopen-api-key': apiKey,
-      },
-      // 필요에 따라 캐싱 적용 (1시간)
+      headers: { 'x-nxopen-api-key': apiKey },
       next: { revalidate: 3600 },
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error(`OCID 조회 실패 [${response.status}]:`, errorData);
       throw new Error(`OCID 조회 실패: ${response.status}`);
     }
 
@@ -46,13 +92,11 @@ export async function getOcid(characterName: string): Promise<string | null> {
 }
 
 /**
- * OCID로 캐릭터 착용 장비 정보를 조회합니다.
+ * OCID로 착용 장비 정보 조회
  */
 export async function getCharacterEquipment(ocid: string) {
   try {
     const apiKey = getApiKey();
-    
-    // 넥슨 API는 당일 데이터 갱신이 느릴 수 있으므로 어제 날짜를 기본 검색일로 지정합니다.
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const dateString = yesterday.toISOString().split('T')[0];
@@ -60,9 +104,7 @@ export async function getCharacterEquipment(ocid: string) {
     const url = `${NEXON_API_BASE_URL}/character/item-equipment?ocid=${ocid}&date=${dateString}`;
 
     const response = await fetch(url, {
-      headers: {
-        'x-nxopen-api-key': apiKey,
-      },
+      headers: { 'x-nxopen-api-key': apiKey },
       next: { revalidate: 3600 },
     });
 
@@ -79,7 +121,7 @@ export async function getCharacterEquipment(ocid: string) {
 }
 
 /**
- * 캐릭터의 기본 정보와 장비 정보를 한 번에 가져오는 통합 함수
+ * 캐릭터 정보 통합 함수
  */
 export async function getCharacterFullInfo(characterName: string) {
   try {
@@ -91,7 +133,7 @@ export async function getCharacterFullInfo(characterName: string) {
     return {
       basic: {
         character_name: characterName,
-        world_name: '스카니아', // 필요 시 basic API 추가 연동 가능
+        world_name: '스카니아',
         character_class: '전사',
         character_level: 260,
       },

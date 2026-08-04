@@ -1,6 +1,6 @@
 // 추천 알고리즘 엔진
 // 최소 비용으로 최대 전투력(스탯) 상승을 위한 장비 강화 추천
-
+'use client';
 import type { 
   CharacterItem,
   EquipmentRecommendation, 
