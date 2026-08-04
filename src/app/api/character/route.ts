@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCharacterFullInfo, CharacterEquipment, CharacterFullInfo as MapleCharacterFullInfo } from '@/lib/maple-api';
 import { generateRecommendations } from '@/lib/recommendation-engine';
 import type { CharacterItem } from '@/types';
-
+ 
 // CharacterEquipment를 CharacterItem 타입으로 변환
 function convertEquipmentToCharacterItem(equipment: CharacterEquipment): CharacterItem {
   return {
