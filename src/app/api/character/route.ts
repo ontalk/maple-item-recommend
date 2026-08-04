@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCharacterFullInfo, CharacterEquipment, CharacterFullInfo as MapleCharacterFullInfo } from '@/lib/maple-api';
+import { getCharacterFullInfo } from '@/lib/maple-api';
 import { generateRecommendations } from '@/lib/recommendation-engine';
 import type { CharacterItem } from '@/types';
- 
+
 // CharacterEquipment를 CharacterItem 타입으로 변환
-// CharacterEquipment를 CharacterItem 타입으로 변환
-function convertEquipmentToCharacterItem(equipment: CharacterEquipment): CharacterItem {
+function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
   return {
     item_equipment_part: equipment.item_equipment_part,
     item_slot: equipment.item_slot,
@@ -20,8 +19,8 @@ function convertEquipmentToCharacterItem(equipment: CharacterEquipment): Charact
     item_exceptional_option: equipment.item_exceptional_option ? [{ option_type: 'exceptional', option_value: equipment.item_exceptional_option }] : [],
     item_potential_option_grade: equipment.item_potential_option_grade,
     
-    // 수정된 부분: 잠재능력이 없을 경우를 대비해 ?. 와 ?? [] 추가
-    item_potential_option: equipment.potential_options?.flatMap(opt => 
+    // 💡 (opt: any) 로 타입을 명시하여 TS7006 에러 방지
+    item_potential_option: equipment.potential_options?.flatMap((opt: any) => 
       [opt.potential_option_1, opt.potential_option_2, opt.potential_option_3]
         .filter(Boolean)
         .map(val => ({ potential_option_grade: opt.potential_option_grade, potential_option_value: val! }))
@@ -29,15 +28,15 @@ function convertEquipmentToCharacterItem(equipment: CharacterEquipment): Charact
     
     item_add_potential_option_grade: equipment.item_add_potential_option_grade,
     
-    // 수정된 부분: 에디셔널 잠재능력이 없을 경우를 대비해 ?. 와 ?? [] 추가
-    item_add_potential_option: equipment.additional_potential_options?.flatMap(opt => 
+    // 💡 (opt: any) 로 타입을 명시하여 TS7006 에러 방지
+    item_add_potential_option: equipment.additional_potential_options?.flatMap((opt: any) => 
       [opt.potential_option_1, opt.potential_option_2, opt.potential_option_3]
         .filter(Boolean)
         .map(val => ({ potential_option_grade: opt.potential_option_grade, potential_option_value: val! }))
     ) ?? [],
     
     item_starforce: equipment.item_starforce,
-    item_max_starforce: 25, // 기본값, 실제로는 장비 타입별로 다름
+    item_max_starforce: 25,
     item_equip_level: equipment.item_equip_level,
     item_equip_type: equipment.item_type,
     item_set_name: null,
@@ -56,7 +55,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 캐릭터 전체 정보 조회
     const character = await getCharacterFullInfo(characterName);
     
     if (!character) {
@@ -66,7 +64,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // CharacterFullInfo를 generateRecommendations가 기대하는 형태로 변환
     const characterForRecommendation = {
       character_name: character.basic.character_name,
       world_name: character.basic.world_name,
@@ -75,7 +72,6 @@ export async function GET(request: NextRequest) {
       character_item: character.equipment.map(convertEquipmentToCharacterItem),
     };
 
-    // 추천 생성
     const recommendations = generateRecommendations(characterForRecommendation);
 
     return NextResponse.json(recommendations);
