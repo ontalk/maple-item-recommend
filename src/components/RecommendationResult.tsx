@@ -1,306 +1,224 @@
 'use client';
 
-import { 
-  Sword, Shield, Gem, ArrowUp, ArrowDown, AlertTriangle, 
-  CheckCircle, XCircle, Info, Loader2, Coins, TrendingUp
-} from 'lucide-react';
-import type { RecommendationResponse, EquipmentRecommendation, RecommendationOption } from '@/types';
-import { formatMesos, getRiskLevelKorean, getPriorityKorean } from '@/lib/recommendation-engine';
+import { useState } from 'react';
 
-const TYPE_ICONS: Record<string, any> = {
-  starforce: Sword,
-  potential: Gem,
-  additional_potential: Gem,
-  replace: ArrowUp,
-};
+// 장비창 그리드 슬롯 배치 정의 (5열 기준 메이플스토리 장비창 레이아웃)
+const SLOT_LAYOUT = [
+  ['반지1', '', '모자', '', '엠블렘'],
+  ['반지2', '', '얼굴장식', '', '뱃지'],
+  ['반지3', '펜던트', '눈장식', '귀고리', '훈장'],
+  ['반지4', '펜던트2', '상의', '어깨장식', '기계 심장'],
+  ['포켓 아이템', '벨트', '하의', '장갑', '예비 특수 반지'],
+  ['무기', '', '신발', '망토', '보조무기']
+];
 
-const TYPE_COLORS: Record<string, string> = {
-  starforce: 'bg-orange-100 text-orange-700 border-orange-200',
-  potential: 'bg-purple-100 text-purple-700 border-purple-200',
-  additional_potential: 'bg-pink-100 text-pink-700 border-pink-200',
-  replace: 'bg-blue-100 text-blue-700 border-blue-200',
-};
+export default function RecommendationResult({ data }: { data: any }) {
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [targetPower, setTargetPower] = useState('');
 
-const TYPE_LABELS: Record<string, string> = {
-  starforce: '스타포스',
-  potential: '잠재옵션',
-  additional_potential: '에디셔널',
-  replace: '교체',
-};
-
-const RISK_COLORS: Record<string, string> = {
-  low: 'bg-green-100 text-green-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-red-100 text-red-700',
-};
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: 'bg-red-100 text-red-700 border-red-200',
-  medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  low: 'bg-green-100 text-green-700 border-green-200',
-};
-
-interface RecommendationResultProps {
-  data: RecommendationResponse | null;
-  isLoading: boolean;
-  error: string | null;
-  onNewSearch: () => void;
-}
-
-export default function RecommendationResult({ data, isLoading, error, onNewSearch }: RecommendationResultProps) {
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="w-10 h-10 animate-spin text-maple-orange" />
-        <p className="mt-4 text-lg text-gray-600">캐릭터 정보를 분석 중입니다...</p>
-        <p className="text-sm text-gray-400">잠시만 기다려 주세요.</p>
-      </div>
+  // 슬롯 이름에 맞는 아이템 찾기 헬퍼
+  const getItemBySlot = (slotName: string) => {
+    if (!slotName || !data?.recommendations) return null;
+    return data.recommendations.find(
+      (rec: any) => rec.equipment_part === slotName || rec.current_item?.item_slot === slotName
     );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-        <XCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-        <h3 className="text-lg font-semibold text-red-700 mb-2">오류가 발생했습니다</h3>
-        <p className="text-red-600 mb-4">{error}</p>
-        <button
-          onClick={onNewSearch}
-          className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-        >
-          다시 시도
-        </button>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return null;
-  }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* 캐릭터 헤더 */}
-      <div className="bg-gradient-to-r from-maple-orange to-maple-red rounded-2xl p-6 text-white">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold">{data.character_name}</h2>
-            <div className="flex flex-wrap gap-3 mt-2 text-maple-orange/80">
-              <span className="px-3 py-1 bg-white/20 rounded-full text-sm">{data.world_name}</span>
-              <span className="px-3 py-1 bg-white/20 rounded-full text-sm">{data.summary.main_stat_focus} 주스탯</span>
-              <span className="px-3 py-1 bg-white/20 rounded-full text-sm">Lv.{data.recommendations[0]?.current_item?.item_equip_level || '?'}</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-3xl font-bold">{formatMesos(data.total_estimated_cost)}</p>
-            <p className="text-maple-orange/80 text-sm">예상 총 비용</p>
-          </div>
-        </div>
-      </div>
-
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard 
-          icon={TrendingUp} 
-          label="예상 스탯 상승" 
-          value={data.summary.expected_stat_increase.toLocaleString()} 
-          color="bg-blue-500" 
-        />
-        <SummaryCard 
-          icon={AlertTriangle} 
-          label="높은 우선순위" 
-          value={data.summary.high_priority_count} 
-          color="bg-red-500" 
-        />
-        <SummaryCard 
-          icon={Info} 
-          label="보통 우선순위" 
-          value={data.summary.medium_priority_count} 
-          color="bg-yellow-500" 
-        />
-        <SummaryCard 
-          icon={CheckCircle} 
-          label="낮은 우선순위" 
-          value={data.summary.low_priority_count} 
-          color="bg-green-500" 
-        />
-      </div>
-
-      {/* 장비별 추천 */}
-      <div className="space-y-4">
-        {data.recommendations.map((rec, index) => (
-          <EquipmentRecommendationCard 
-            key={`${rec.equipment_part}-${index}`}
-            recommendation={rec}
-            index={index}
-          />
-        ))}
-      </div>
-
-      {/* 다시 검색 버튼 */}
-      <div className="text-center pt-4">
-        <button
-          onClick={onNewSearch}
-          className="px-8 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center gap-2 mx-auto"
-        >
-          <Sword className="w-5 h-5" />
-          다른 캐릭터 조회하기
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({ icon: Icon, label, value, color }: { 
-  icon: any; 
-  label: string; 
-  value: string | number; 
-  color: string; 
-}) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-      <div className={`${color} w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2`}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <p className="text-2xl font-bold text-gray-800">{value}</p>
-      <p className="text-sm text-gray-500 mt-1">{label}</p>
-    </div>
-  );
-}
-
-function EquipmentRecommendationCard({ recommendation, index }: { 
-  recommendation: EquipmentRecommendation; 
-  index: number; 
-}) {
-  const { equipment_part, current_item, recommendations: options, priority, reason } = recommendation;
-  const Icon = TYPE_ICONS[options[0]?.type] || Sword;
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-200">
-      {/* 장비 헤더 */}
-      <div className={`px-6 py-4 border-b border-gray-100 flex items-center justify-between ${PRIORITY_COLORS[priority]}`}>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-gray-800">{index + 1}.</span>
-          <div className="flex items-center gap-2">
-            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-              {current_item.item_icon ? (
-                <img 
-                  src={current_item.item_icon} 
-                  alt={current_item.item_name} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Icon className="w-6 h-6 text-gray-400" />
-              )}
-            </div>
-            <div>
-              <p className="font-semibold text-gray-800">{equipment_part}</p>
-              <p className="text-sm text-gray-500">{current_item.item_name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* 현재 상태 배지 */}
-            <div className="flex gap-1">
-              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">{current_item.item_starforce}성</span>
-              <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded">{current_item.item_potential_option_grade}</span>
-              <span className="px-2 py-1 bg-pink-100 text-pink-700 text-xs rounded">{current_item.item_add_potential_option_grade}</span>
-            </div>
-            <span className="px-3 py-1 rounded-full text-sm font-medium">
-              우선순위: {getPriorityKorean(priority)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 추천 사유 */}
-      <div className="px-6 py-3 bg-gray-50 border-b border-gray-100">
-        <p className="text-sm text-gray-600 flex items-center gap-1">
-          <Info className="w-4 h-4" /> {reason}
-        </p>
-      </div>
-
-      {/* 추천 옵션들 */}
-      <div className="px-6 py-4 space-y-3">
-        {options.map((opt, optIndex) => (
-          <RecommendationOptionCard 
-            key={`${opt.type}-${optIndex}`}
-            option={opt}
-            type={opt.type}
-          />
-        ))}
-        
-        {options.length === 0 && (
-          <div className="text-center py-4 text-gray-500">
-            <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
-            <p>현재 장비 상태가 양호합니다. 추가 강화가 큰 효율이 없을 수 있습니다.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RecommendationOptionCard({ option, type }: { 
-  option: RecommendationOption; 
-  type: string; 
-}) {
-  const Icon = TYPE_ICONS[type] || Sword;
-
-  return (
-    <div className={`border rounded-xl p-4 hover:bg-gray-50 transition-colors ${TYPE_COLORS[type]} border-opacity-50`}>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/50">
-            <Icon className="w-5 h-5" />
+    <div className="max-w-5xl mx-auto p-4 space-y-6">
+      {/* 1. 상단 프로필 및 목표 전투력 영역 */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center p-2 border border-gray-200">
+            {/* 캐릭터 아이콘 혹은 기본 이미지 */}
+            <span className="text-3xl">🧙‍♀️</span>
           </div>
           <div>
-            <p className="font-semibold text-gray-800">{TYPE_LABELS[type]}: {option.action}</p>
-            <p className="text-sm text-gray-600 mt-1">{option.description}</p>
-          </div>
-        </div>
-        
-        <div className="flex flex-col md:items-end gap-2 md:flex-row md:gap-4">
-          {/* 비용 */}
-          <div className="flex items-center gap-2 text-right">
-            <Coins className="w-5 h-5 text-maple-orange" />
-            <span className="font-bold text-lg text-gray-800">{formatMesos(option.estimated_cost)}</span>
-          </div>
-          
-          {/* 스탯 상승 */}
-          <div className="flex items-center gap-2 text-right">
-            <TrendingUp className="w-5 h-5 text-green-500" />
-            <span className="font-semibold text-green-600">
-              +{option.expected_stat_gain.reduce((sum, s) => sum + s.gain, 0).toLocaleString()}
-            </span>
-          </div>
-          
-          {/* 성공률 & 위험도 */}
-          <div className="flex items-center gap-4 text-sm">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500" />
-              성공률: {(option.success_rate * 100).toFixed(1)}%
-            </span>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${RISK_COLORS[option.risk_level]}`}>
-              위험도: {getRiskLevelKorean(option.risk_level)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 상세 스탯 상승 */}
-      <div className="mt-3 pt-3 border-t border-white/50 grid grid-cols-2 md:grid-cols-4 gap-2">
-        {option.expected_stat_gain.map((stat, i) => (
-          <div key={i} className="text-center p-2 bg-white/50 rounded-lg">
-            <p className="text-xs text-gray-500">{stat.stat_name}</p>
-            <p className="font-semibold text-gray-800">
-              {stat.current_value > 0 ? `${stat.current_value} → ${stat.expected_value}` : `+${stat.gain}`}
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">{data.character_name}</h1>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md">실시간 조회</span>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Lv.260 · {data.world_name}
             </p>
-            {stat.current_value > 0 && (
-              <p className="text-xs text-green-600">+{stat.gain}</p>
-            )}
+            <p className="text-2xl font-extrabold text-amber-500 mt-1">
+              1억 3465만 4058 <span className="text-xs text-gray-400 font-normal">전투력</span>
+            </p>
           </div>
-        ))}
+        </div>
+
+        {/* 목표 전투력 입력창 */}
+        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
+          <span className="text-sm font-medium text-gray-600">🎯 목표 전투력</span>
+          <input
+            type="number"
+            placeholder="예: 5"
+            value={targetPower}
+            onChange={(e) => setTargetPower(e.target.value)}
+            className="w-20 px-2 py-1 text-sm bg-white border border-gray-300 rounded-lg text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+          <span className="text-sm font-bold text-gray-700">억</span>
+          <button className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-3 py-1.5 rounded-lg transition-colors">
+            확인
+          </button>
+        </div>
       </div>
+
+      {/* 2. 메이플스토리 장비창 그리드 */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          🎒 장비창 <span className="text-xs font-normal text-gray-400">— 아이템을 클릭하면 상세 추천이 표시됩니다.</span>
+        </h2>
+
+        <div className="grid grid-cols-5 gap-3">
+          {SLOT_LAYOUT.flatMap((row, rowIndex) =>
+            row.map((slotName, colIndex) => {
+              if (!slotName) {
+                return <div key={`${rowIndex}-${colIndex}`} className="h-24 opacity-0 pointer-events-none" />;
+              }
+
+              const itemData = getItemBySlot(slotName);
+              const currentItem = itemData?.current_item;
+              const starforce = currentItem?.item_starforce;
+
+              return (
+                <div
+                  key={`${rowIndex}-${colIndex}`}
+                  onClick={() => itemData && setSelectedItem(itemData)}
+                  className={`h-24 bg-gray-50 hover:bg-amber-50/50 border rounded-xl p-2 flex flex-col justify-between items-center cursor-pointer transition-all hover:scale-105 hover:shadow-md relative ${
+                    selectedItem?.equipment_part === slotName ? 'border-amber-500 ring-2 ring-amber-200' : 'border-gray-200'
+                  }`}
+                >
+                  <span className="text-[11px] text-gray-400 font-medium">{slotName}</span>
+                  
+                  {currentItem ? (
+                    <>
+                      {/* 아이템 아이콘 */}
+                      {currentItem.item_icon ? (
+                        <img src={currentItem.item_icon} alt={currentItem.item_name} className="w-10 h-10 object-contain" />
+                      ) : (
+                        <div className="w-8 h-8 bg-gray-200 rounded-full" />
+                      )}
+
+                      {/* 아이템 이름 & 스타포스 */}
+                      <div className="text-center w-full truncate">
+                        <p className="text-xs font-bold text-gray-800 truncate px-1">
+                          {currentItem.item_name}
+                        </p>
+                        {starforce > 0 && (
+                          <span className="text-[11px] font-extrabold text-blue-500">
+                            ★{starforce}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-300 my-auto">미장착</span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* 3. 클릭 시 뜨는 상세 모달 (Modal) 팝업 */}
+      {selectedItem && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setSelectedItem(null)}
+              className="absolute top-4 right-4 w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold transition-colors"
+            >
+              ✕
+            </button>
+
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{selectedItem.equipment_part}</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 왼쪽: 현재 장비 스탯 카드 */}
+              <div className="border-2 border-emerald-500/30 bg-emerald-50/10 rounded-2xl p-4">
+                <span className="text-xs font-bold text-emerald-600 mb-2 inline-block">📦 현재 장비</span>
+                <div className="text-center pb-4 border-b border-gray-100">
+                  <h4 className="font-bold text-emerald-700 text-base">{selectedItem.current_item?.item_name}</h4>
+                  {selectedItem.current_item?.item_icon && (
+                    <img src={selectedItem.current_item.item_icon} alt="" className="w-16 h-16 mx-auto my-2 object-contain" />
+                  )}
+                </div>
+
+                {/* 잠재옵션 목록 */}
+                <div className="mt-4 space-y-3 text-xs">
+                  <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    <span className="font-bold text-emerald-600 block mb-1">
+                      잠재옵션 ({selectedItem.current_item?.item_potential_option_grade || '없음'})
+                    </span>
+                    {selectedItem.current_item?.item_potential_option?.length > 0 ? (
+                      selectedItem.current_item.item_potential_option.map((opt: any, idx: number) => (
+                        <p key={idx} className="text-gray-700">{opt.potential_option_value}</p>
+                      ))
+                    ) : (
+                      <p className="text-gray-400">잠재옵션 없음</p>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    <span className="font-bold text-emerald-600 block mb-1">
+                      에디셔널 잠재옵션 ({selectedItem.current_item?.item_add_potential_option_grade || '없음'})
+                    </span>
+                    {selectedItem.current_item?.item_add_potential_option?.length > 0 ? (
+                      selectedItem.current_item.item_add_potential_option.map((opt: any, idx: number) => (
+                        <p key={idx} className="text-gray-700">{opt.potential_option_value}</p>
+                      ))
+                    ) : (
+                      <p className="text-gray-400">에디셔널 잠재옵션 없음</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 오른쪽: 추천 가성비 강화 옵션 */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-amber-600 block">🎯 추천 스펙업 빌드</span>
+                
+                {selectedItem.recommendations?.length > 0 ? (
+                  selectedItem.recommendations.map((rec: any, idx: number) => (
+                    <div key={idx} className="bg-amber-50/50 border border-amber-200 p-3 rounded-2xl">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-amber-900 text-xs">{rec.action}</span>
+                        <span className="text-[10px] bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                          추천 {idx + 1}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{rec.description}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="bg-gray-50 p-6 rounded-2xl text-center text-xs text-gray-400 border border-gray-100">
+                    현재 스펙에서는 추가 강화를 추천하지 않습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-gray-100">
+              <button 
+                onClick={() => setSelectedItem(null)}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors"
+              >
+                + 적용 목록에 담기
+              </button>
+              <button 
+                onClick={() => setSelectedItem(null)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs px-4 py-2 rounded-xl transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
