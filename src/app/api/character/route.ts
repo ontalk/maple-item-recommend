@@ -4,13 +4,42 @@ import { generateRecommendations } from '@/lib/recommendation-engine';
 import type { CharacterItem } from '@/types';
 
 function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
-  // 💡 문자열 스타포스를 숫자로 안전하게 파싱
   const sfVal = equipment.item_starforce ?? equipment.starforce ?? 0;
   const sfNum = typeof sfVal === 'string' ? parseInt(sfVal, 10) : Number(sfVal);
 
+  const parsePotential = (grade: string, opt1: any, opt2: any, opt3: any, arrOpt: any[]) => {
+    if (Array.isArray(arrOpt) && arrOpt.length > 0) {
+      return arrOpt.map((opt: any) => ({
+        potential_option_grade: grade || '',
+        potential_option_value: opt.potential_option_value || opt,
+      }));
+    }
+    return [opt1, opt2, opt3]
+      .filter(Boolean)
+      .map((val) => ({
+        potential_option_grade: grade || '',
+        potential_option_value: typeof val === 'string' ? val : val?.potential_option_value || '',
+      }));
+  };
+
+  const potentialArr = parsePotential(
+    equipment.item_potential_option_grade,
+    equipment.item_potential_option_1 || equipment.potential_option_1,
+    equipment.item_potential_option_2 || equipment.potential_option_2,
+    equipment.item_potential_option_3 || equipment.potential_option_3,
+    equipment.item_potential_option
+  );
+
+  const addPotentialArr = parsePotential(
+    equipment.item_add_potential_option_grade,
+    equipment.additional_potential_option_1 || equipment.item_add_potential_option_1,
+    equipment.additional_potential_option_2 || equipment.item_add_potential_option_2,
+    equipment.additional_potential_option_3 || equipment.item_add_potential_option_3,
+    equipment.item_add_potential_option
+  );
+
   return {
     item_equipment_part: equipment.item_equipment_part || '',
-    // 💡 핵심: item_equipment_slot (반지1, 반지2 등)을 반드시 보존합니다.
     item_slot: equipment.item_equipment_slot || equipment.item_slot || equipment.item_equipment_part || '',
     item_name: equipment.item_name || '',
     item_icon: equipment.item_icon || '',
@@ -22,17 +51,9 @@ function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
     item_base_option: [],
     item_exceptional_option: equipment.item_exceptional_option ? [{ option_type: 'exceptional', option_value: equipment.item_exceptional_option }] : [],
     item_potential_option_grade: equipment.item_potential_option_grade || '',
-    item_potential_option: equipment.potential_options?.flatMap((opt: any) => 
-      [opt.potential_option_1, opt.potential_option_2, opt.potential_option_3]
-        .filter(Boolean)
-        .map(val => ({ potential_option_grade: opt.potential_option_grade, potential_option_value: val! }))
-    ) ?? [],
+    item_potential_option: potentialArr,
     item_add_potential_option_grade: equipment.item_add_potential_option_grade || '',
-    item_add_potential_option: equipment.additional_potential_options?.flatMap((opt: any) => 
-      [opt.potential_option_1, opt.potential_option_2, opt.potential_option_3]
-        .filter(Boolean)
-        .map(val => ({ potential_option_grade: opt.potential_option_grade, potential_option_value: val! }))
-    ) ?? [],
+    item_add_potential_option: addPotentialArr,
     item_starforce: isNaN(sfNum) ? 0 : sfNum,
     item_max_starforce: 25,
     item_equip_level: equipment.item_equip_level || 150,
@@ -46,14 +67,20 @@ export async function GET(request: NextRequest) {
   const characterName = searchParams.get('name');
 
   if (!characterName) {
-    return NextResponse.json({ error: '캐릭터 닉네임이 필요합니다.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '캐릭터 닉네임이 필요합니다.' },
+      { status: 400 }
+    );
   }
 
   try {
     const character = await getCharacterFullInfo(characterName);
     
     if (!character) {
-      return NextResponse.json({ error: '캐릭터를 찾을 수 없습니다.' }, { status: 404 });
+      return NextResponse.json(
+        { error: '캐릭터를 찾을 수 없습니다. 닉네임을 확인해주세요.' },
+        { status: 404 }
+      );
     }
 
     const characterForRecommendation = {
@@ -75,6 +102,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('API 오류:', error);
-    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+    return NextResponse.json(
+      { error: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' },
+      { status: 500 }
+    );
   }
 }
