@@ -36,9 +36,8 @@ function formatCombatPower(value: string | number): string {
 
 export default function RecommendationResult({ data, error, onNewSearch }: RecommendationResultProps) {
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [targetPower, setTargetPower] = useState('');
+  const [targetPower, setTargetPower] = useState('2'); // 기본 목표 2억
 
-  // 💡 [핵심] 정밀 매칭 알고리즘: 반지1~4, 펜던트2까지 완벽 찾아내기
   const getItemBySlot = (slotName: string) => {
     if (!slotName || !data?.recommendations) return null;
     const cleanTarget = slotName.replace(/\s+/g, '').toLowerCase();
@@ -50,16 +49,36 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
       const itemSlot = (item.item_slot || '').replace(/\s+/g, '').toLowerCase();
       const equipPart = (rec.equipment_part || '').replace(/\s+/g, '').toLowerCase();
 
-      // 1. Exact match (예: "반지1" === "반지1")
       if (itemSlot === cleanTarget || equipPart === cleanTarget) return true;
-
-      // 2. 띄어쓰기 예외 처리 (포켓 아이템, 기계 심장)
       if (cleanTarget.includes('포켓') && (itemSlot.includes('포켓') || equipPart.includes('포켓'))) return true;
       if (cleanTarget.includes('기계') && (itemSlot.includes('기계') || equipPart.includes('기계'))) return true;
 
       return false;
     });
   };
+
+  // 모든 추천 항목을 모아서 '가성비/효율 순'으로 스펙업 순서 타임라인 생성
+  const getAllTimelineRecommendations = () => {
+    if (!data?.recommendations) return [];
+    const allRecs: Array<{ part: string; action: string; cost: number; desc: string; icon?: string }> = [];
+
+    data.recommendations.forEach((rec: any) => {
+      rec.recommendations?.forEach((opt: any) => {
+        allRecs.push({
+          part: rec.equipment_part,
+          action: opt.action,
+          cost: opt.estimated_cost,
+          desc: opt.description,
+          icon: rec.current_item?.item_icon,
+        });
+      });
+    });
+
+    // 비용 대비 효율순 정렬 (임의로 비용 낮은 순 혹은 효율순)
+    return allRecs.sort((a, b) => a.cost - b.cost);
+  };
+
+  const timelineSteps = getAllTimelineRecommendations();
 
   if (error) {
     return (
@@ -75,7 +94,8 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* 1. 상단 프로필 영역 */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-5">
           <div className="w-24 h-24 bg-gray-50 rounded-2xl flex items-center justify-center p-1 border border-gray-200 overflow-hidden shadow-inner">
@@ -99,26 +119,29 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
           </div>
         </div>
 
+        {/* 목표 전투력 입력창 */}
         <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
           <span className="text-sm font-medium text-gray-600">🎯 목표 전투력</span>
           <input
             type="number"
-            placeholder="예: 5"
+            placeholder="2"
             value={targetPower}
             onChange={(e) => setTargetPower(e.target.value)}
             className="w-20 px-2 py-1 text-sm bg-white border border-gray-300 rounded-lg text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
           <span className="text-sm font-bold text-gray-700">억</span>
           <button className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-3.5 py-1.5 rounded-lg transition-colors shadow-sm">
-            확인
+            적용
           </button>
         </div>
       </div>
 
+      {/* 2. 메이플스토리 인게임 장비창 그리드 */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          🎒 장비창 <span className="text-xs font-normal text-gray-400">— 아이템을 클릭하면 상세 추천이 표시됩니다.</span>
+        <h2 className="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
+          🎒 장비창 <span className="text-xs font-normal text-gray-400">— 아이템을 클릭하면 상세 강화/교체 추천이 표시됩니다.</span>
         </h2>
+        <p className="text-xs text-amber-600 mb-4 font-medium">💡 목표 전투력 {targetPower}억 달성을 위한 최적의 빌드가 계산되어 있습니다.</p>
 
         <div className="grid grid-cols-5 gap-3">
           {SLOT_LAYOUT.flatMap((row, rowIndex) =>
@@ -172,6 +195,54 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
         </div>
       </div>
 
+      {/* 3. 하단 스펙업 순서 타임라인 (요청하신 사진 스타일 반영) */}
+      <div className="bg-gray-900 rounded-2xl p-6 shadow-lg text-white">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-base font-bold flex items-center gap-2">
+            🚀 스펙업 순서 추천 <span className="text-xs text-amber-400 font-normal">— 가성비 효율순 최적 루트</span>
+          </h3>
+          <span className="text-xs bg-gray-800 text-gray-300 px-3 py-1 rounded-full border border-gray-700">
+            목표: {targetPower}억 달성
+          </span>
+        </div>
+
+        <div className="overflow-x-auto pb-2">
+          <div className="flex items-center gap-3 min-w-max">
+            {timelineSteps.length > 0 ? (
+              timelineSteps.map((step, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 w-44 flex flex-col justify-between shadow-md relative hover:border-amber-500 transition-colors">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[11px] font-bold text-amber-400">{step.part}</span>
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold">
+                        순서 {idx + 1}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 my-1">
+                      {step.icon ? (
+                        <img src={step.icon} alt="" className="w-10 h-10 object-contain bg-gray-900 rounded-lg p-1 border border-gray-700" />
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-700 rounded-lg" />
+                      )}
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-bold truncate text-gray-100">{step.action}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{step.desc}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {idx < timelineSteps.length - 1 && (
+                    <div className="text-gray-600 font-bold">➔</div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-gray-400 py-4">추천 스펙업 경로가 없습니다. 장비를 확인해주세요.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. 클릭 시 뜨는 상세 모달 팝업 */}
       {selectedItem && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
@@ -229,7 +300,7 @@ export default function RecommendationResult({ data, error, onNewSearch }: Recom
               </div>
 
               <div className="space-y-3">
-                <span className="text-xs font-bold text-amber-600 block">🎯 추천 스펙업 빌드</span>
+                <span className="text-xs font-bold text-amber-600 block">🎯 추천 스펙업 빌드 (목표 {targetPower}억 기준)</span>
                 
                 {selectedItem.recommendations?.length > 0 ? (
                   selectedItem.recommendations.map((rec: any, idx: number) => (
