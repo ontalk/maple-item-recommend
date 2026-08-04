@@ -4,6 +4,7 @@ import { generateRecommendations } from '@/lib/recommendation-engine';
 import type { CharacterItem } from '@/types';
  
 // CharacterEquipment를 CharacterItem 타입으로 변환
+// CharacterEquipment를 CharacterItem 타입으로 변환
 function convertEquipmentToCharacterItem(equipment: CharacterEquipment): CharacterItem {
   return {
     item_equipment_part: equipment.item_equipment_part,
@@ -18,17 +19,23 @@ function convertEquipmentToCharacterItem(equipment: CharacterEquipment): Charact
     item_base_option: [],
     item_exceptional_option: equipment.item_exceptional_option ? [{ option_type: 'exceptional', option_value: equipment.item_exceptional_option }] : [],
     item_potential_option_grade: equipment.item_potential_option_grade,
-    item_potential_option: equipment.potential_options.flatMap(opt => 
+    
+    // 수정된 부분: 잠재능력이 없을 경우를 대비해 ?. 와 ?? [] 추가
+    item_potential_option: equipment.potential_options?.flatMap(opt => 
       [opt.potential_option_1, opt.potential_option_2, opt.potential_option_3]
         .filter(Boolean)
         .map(val => ({ potential_option_grade: opt.potential_option_grade, potential_option_value: val! }))
-    ),
+    ) ?? [],
+    
     item_add_potential_option_grade: equipment.item_add_potential_option_grade,
-    item_add_potential_option: equipment.additional_potential_options.flatMap(opt => 
+    
+    // 수정된 부분: 에디셔널 잠재능력이 없을 경우를 대비해 ?. 와 ?? [] 추가
+    item_add_potential_option: equipment.additional_potential_options?.flatMap(opt => 
       [opt.potential_option_1, opt.potential_option_2, opt.potential_option_3]
         .filter(Boolean)
         .map(val => ({ potential_option_grade: opt.potential_option_grade, potential_option_value: val! }))
-    ),
+    ) ?? [],
+    
     item_starforce: equipment.item_starforce,
     item_max_starforce: 25, // 기본값, 실제로는 장비 타입별로 다름
     item_equip_level: equipment.item_equip_level,
