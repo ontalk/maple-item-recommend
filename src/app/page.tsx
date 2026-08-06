@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Shield, TrendingUp, Coins } from 'lucide-react';
+import { Sparkles, Shield, TrendingUp, Coins, ShoppingCart } from 'lucide-react';
 import CharacterSearch from '@/components/CharacterSearch';
 import RecommendationResult from '@/components/RecommendationResult';
+import { AuctionSearch } from '@/components/AuctionSearch';
 
 export default function Home() {
   const [searchData, setSearchData] = useState<{
@@ -108,6 +109,27 @@ export default function Home() {
             targetPower={targetPower}
             onTargetApply={handleTargetApply}
           />
+        </div>
+      </section>
+
+      {/* 경매장 검색 섹션 */}
+      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <ShoppingCart className="w-8 h-8 text-maple-orange" />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              경매장 실시간 시세 검색
+            </h2>
+            <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+              베타 (비공식 API)
+            </span>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl">
+            실시간 경매장 데이터를 웹소켓으로 받아옵니다. 아이템명으로 검색하여 현재 시세를 확인하세요.
+            <br />
+            <strong className="text-red-600">주의:</strong> 비공식 웹소켓을 사용하므로 넥슨 약관 위반 소지가 있으며, 언제든 차단될 수 있습니다.
+          </p>
+          <AuctionSearch />
         </div>
       </section>
 
