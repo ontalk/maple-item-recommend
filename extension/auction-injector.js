@@ -1,61 +1,58 @@
 // 옥션 페이지에 주입되어 검색 요청을 처리하는 스크립트
-const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
+// CSP 우회: CustomEvent를 사용한 통신
 
-console.log('🎯 Maple Auction Injector 활성화됨');
+console.log('🎯 Maple Auction Injector 로딩 중...');
 
-// background에서 오는 메시지 수신
+// 페이지 컨텍스트에서 실행될 함수를 window.eval 없이 주입
+const scriptSrc = chrome.runtime.getURL('auction-page-script.js');
+const script = document.createElement('script');
+script.src = scriptSrc;
+script.onload = function() {
+  console.log('✅ 페이지 스크립트 로드 완료');
+  this.remove();
+};
+script.onerror = function() {
+  console.error('❌ 페이지 스크립트 로드 실패');
+  this.remove();
+};
+(document.head || document.documentElement).appendChild(script);
+
+// Content Script: background와 페이지 사이의 브릿지 역할
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('📨 옥션 탭에서 메시지 수신:', message);
+  console.log('📨 Content Script에서 메시지 수신:', message);
 
   if (message?.source !== 'maple-item-recommend' || message?.type !== 'AUCTION_SEARCH') {
     return;
   }
 
   const payload = message.payload;
+  console.log('🔍 페이지로 검색 요청 전달:', payload.filters.keyword);
+
+  // 응답 대기
+  const requestId = crypto.randomUUID();
   
-  console.log('🔍 옥션 검색 시작:', payload.filters.keyword);
+  const handleResponse = (event) => {
+    if (event.detail?.requestId !== requestId) return;
+    
+    console.log('✅ 페이지로부터 응답 수신:', event.detail);
+    window.removeEventListener('maple-auction-response', handleResponse);
+    sendResponse(event.detail.result);
+  };
+  
+  window.addEventListener('maple-auction-response', handleResponse);
+  
+  // 타임아웃 설정
+  setTimeout(() => {
+    window.removeEventListener('maple-auction-response', handleResponse);
+    sendResponse({ ok: false, error: '옥션 검색 시간 초과' });
+  }, 30000);
+  
+  // 페이지로 요청 전달
+  window.dispatchEvent(new CustomEvent('maple-auction-request', {
+    detail: { requestId, payload }
+  }));
 
-  // 비동기 작업이므로 true 반환
-  (async () => {
-    try {
-      const response = await fetch(SEARCH_URL, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accountId: payload.accountId,
-          characterId: payload.characterId,
-          worldId: payload.worldId,
-          filters: payload.filters,
-          page: payload.page,
-          limit: payload.limit,
-          sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
-          saveRecentKeyword: false,
-        }),
-      });
-      
-      const text = await response.text();
-      console.log(`📦 옥션 API 응답: ${response.status} (${payload.filters.keyword})`);
-      
-      if (!response.ok) {
-        const preview = text.slice(0, 200);
-        console.error(`❌ 응답 실패 (${response.status}):`, preview);
-        throw new Error(`경매장 검색 실패 (${response.status}): ${preview}`);
-      }
-      
-      const data = JSON.parse(text);
-      console.log(`✅ 검색 성공: ${data.total || 0}개 아이템 (${payload.filters.keyword})`);
-      
-      sendResponse({ ok: true, data });
-    } catch (err) {
-      console.error(`❌ 옥션 검색 에러 (${payload.filters.keyword}):`, err);
-      sendResponse({ ok: false, error: err.message });
-    }
-  })();
-
-  return true; // 비동기 응답을 위해 true 반환
+  return true; // 비동기 응답
 });
 
 console.log('✅ Maple Auction Injector 준비 완료');

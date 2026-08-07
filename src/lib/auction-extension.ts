@@ -6,6 +6,8 @@ export interface AuctionProfile {
 
 export interface AuctionSearchFilters {
   keyword: string;
+  page?: number;
+  limit?: number;
   itemCategory?: { itemDetailCategory: 'ARMOR' };
   enhancementOption?: {
     starforceMin?: number;
@@ -68,7 +70,7 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
       source: 'maple-item-recommend',
       type: 'AUCTION_SEARCH',
       requestId,
-      payload: { ...profile, filters, page: 1, limit: 20 },
+      payload: { ...profile, filters, page: filters.page || 1, limit: filters.limit || 20 },
     }, window.location.origin);
   });
 }

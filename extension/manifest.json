@@ -32,6 +32,12 @@
       "js": ["auction-injector.js"],
       "run_at": "document_start"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["auction-page-script.js"],
+      "matches": ["https://auction.maplestory.nexon.com/*"]
+    }
   ]
 }
 

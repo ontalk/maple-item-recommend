@@ -1,0 +1,71 @@
+// 페이지 컨텍스트에서 실행되는 스크립트 (CSP 제한 없음)
+(function() {
+  const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
+  console.log('🎯 Maple Auction Page Script 활성화됨 (페이지 컨텍스트)');
+
+  // Content Script로부터 요청 수신
+  window.addEventListener('maple-auction-request', async (event) => {
+    const { requestId, payload } = event.detail;
+    console.log('🔍 페이지 컨텍스트에서 옥션 검색 시작:', payload.filters.keyword);
+    
+    try {
+      const response = await fetch(SEARCH_URL, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountId: payload.accountId,
+          characterId: payload.characterId,
+          worldId: payload.worldId,
+          filters: payload.filters,
+          page: payload.page || 1,
+          limit: payload.limit || 20,
+          sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
+          saveRecentKeyword: false,
+        }),
+      });
+      
+      const text = await response.text();
+      console.log(`📦 옥션 API 응답: ${response.status} (${payload.filters.keyword})`);
+      
+      if (!response.ok) {
+        const preview = text.slice(0, 200);
+        console.error(`❌ 응답 실패 (${response.status}):`, preview);
+        
+        // 응답 전송
+        window.dispatchEvent(new CustomEvent('maple-auction-response', {
+          detail: {
+            requestId,
+            result: { ok: false, error: `경매장 검색 실패 (${response.status}): ${preview}` }
+          }
+        }));
+        return;
+      }
+      
+      const data = JSON.parse(text);
+      console.log(`✅ 검색 성공: ${data.total || 0}개 아이템 (${payload.filters.keyword})`);
+      
+      // 응답 전송
+      window.dispatchEvent(new CustomEvent('maple-auction-response', {
+        detail: {
+          requestId,
+          result: { ok: true, data }
+        }
+      }));
+    } catch (err) {
+      console.error(`❌ 옥션 검색 에러 (${payload.filters.keyword}):`, err);
+      
+      // 응답 전송
+      window.dispatchEvent(new CustomEvent('maple-auction-response', {
+        detail: {
+          requestId,
+          result: { ok: false, error: err.message }
+        }
+      }));
+    }
+  });
+
+  console.log('✅ Maple Auction Page Script 준비 완료');
+})();

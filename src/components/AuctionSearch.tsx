@@ -120,22 +120,66 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           }
           
           try {
-            const result = await searchAuction(profile, {
-              keyword: equipment.name,
-              itemCategory: { itemDetailCategory: 'ARMOR' },
-              enhancementOption: {
-                starforceMin: 17,
-                starforceMax: 17,
-                potentialGrade: 3, // 유니크
-                additionalPotentialGrade: 2, // 에픽
-              },
-            });
+            // 넥슨 Rate Limiting 방지: 각 새로운 장비 검색 사이에 2초 대기
+            if (totalSearched > 0) {
+              console.log(`⏳ 2초 대기 중... (Rate Limiting 방지)`);
+              await delay(2000);
+            }
+            
+            console.log(`  🔍 ${equipment.name} 검색 시작...`);
+            
+            // 첫 페이지 검색
+            let allItems: AuctionRawItem[] = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            let remainingCount = 0;
+            
+            while (hasMorePages) {
+              const result = await searchAuction(profile, {
+                keyword: equipment.name,
+                page: currentPage,
+                limit: 20,
+                itemCategory: { itemDetailCategory: 'ARMOR' },
+                enhancementOption: {
+                  starforceMin: 17,
+                  starforceMax: 17,
+                  potentialGrade: 3, // 유니크
+                  additionalPotentialGrade: 2, // 에픽
+                },
+              });
+              
+              // 첫 페이지만 카운트 소모
+              if (currentPage === 1) {
+                totalSearched++;
+                remainingCount = result.remaining;
+                setRemaining(result.remaining);
+                console.log(`  └─ 총 ${result.data.total}개 매물 발견, ${result.data.totalPages}페이지`);
+              }
+              
+              allItems.push(...result.data.items);
+              
+              // 다음 페이지 확인
+              if (result.data.hasNext && currentPage < result.data.totalPages) {
+                currentPage++;
+                console.log(`  └─ ${currentPage}페이지 로딩 중...`);
+                // 페이지 넘김은 빠르게 (카운트 소모 없으므로)
+                await delay(300);
+              } else {
+                hasMorePages = false;
+                console.log(`  ✅ ${equipment.name}: 총 ${allItems.length}개 아이템 수집 완료`);
+              }
+            }
+            
+            if (allItems.length === 0) {
+              console.log(`  └─ ⚠️ ${equipment.name}: 매물 없음`);
+              continue;
+            }
 
-            const prices = result.data.items
+            const prices = allItems
               .map((item) => toNumber(item.pricePerItem || item.price))
               .filter((price) => price > 0);
             
-            const attackPowers = result.data.items
+            const attackPowers = allItems
               .map((item) => item.attackPowerDiff || 0)
               .filter((power) => power > 0);
 
@@ -148,12 +192,10 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               lowestPrice,
               medianPrice: median(prices),
               avgAttackPowerDiff: avgAttackPower,
-              listingCount: result.data.total,
+              listingCount: allItems.length,
               efficiency,
-              topItem: result.data.items[0],
+              topItem: allItems[0],
             });
-
-            setRemaining(result.remaining);
           } catch (err) {
             console.error(`${equipment.name} 검색 실패:`, err);
           }
