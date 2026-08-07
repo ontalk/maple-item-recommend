@@ -1,61 +1,154 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, Search, ShoppingCart } from 'lucide-react';
+import { Loader2, Search, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
 import type { BenchmarkComparison, BenchmarkItem } from '@/types';
+import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
+import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
 
-// 잠재옵션 등급을 URL 파라미터로 변환
-function getPotentialGradeParam(grade: string): string {
-  if (grade.includes('유니크')) return 'unique';
-  if (grade.includes('레어')) return 'rare';
-  if (grade.includes('에픽')) return 'epic';
-  if (grade.includes('레전드')) return 'legendary';
-  return 'unique'; // 기본값
+interface EquipmentSearchResult {
+  equipment: EquipmentOption;
+  lowestPrice: number | null;
+  medianPrice: number | null;
+  avgAttackPowerDiff: number; // 평균 전투력 증가량
+  listingCount: number;
+  efficiency: number; // 효율 = 전투력 / 가격
+  topItem?: AuctionRawItem;
 }
 
-// 경매장 검색 URL 생성
-function buildAuctionURL(plan: BenchmarkItem): string {
-  const baseURL = 'https://auction.maplestory.nexon.com/buy';
-  const params = new URLSearchParams({
-    searchTab: 'condition',
-    keyword: plan.target_item,
-    isExactMatch: 'false',
-    page: '1',
-    limit: '20',
-    sortType: 'PRICE_PER_ITEM_ASC',
-    itemCategory: 'ARMOR',
-    'enhancementOption::starforceMin': plan.target_starforce.toString(),
-    'enhancementOption::starforceMax': plan.target_starforce.toString(),
-    'enhancementOption::potentialGrade': getPotentialGradeParam(plan.target_potential),
-  });
-  
-  // 에디셔널 잠재 조건 추가 (있는 경우)
-  if (plan.target_potential.includes('에디')) {
-    params.append('enhancementOption::additionalPotentialGrade', 'epic');
-  }
-  
-  return `${baseURL}?${params.toString()}`;
+interface OptimalSet {
+  part: string;
+  selected: EquipmentSearchResult;
+  alternatives: EquipmentSearchResult[];
+}
+
+function toNumber(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMesos(value: number | null): string {
+  if (value === null) return '매물 없음';
+  if (value >= 100000000) return `${(value / 100000000).toFixed(1)}억`;
+  if (value >= 10000) return `${(value / 10000).toFixed(0)}만`;
+  return value.toLocaleString();
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
-  const [openedItems, setOpenedItems] = useState<Set<string>>(new Set());
+  const [profile, setProfile] = useState<AuctionProfile>({ accountId: 0, characterId: 0, worldId: 5 });
+  const [isSearching, setIsSearching] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
 
-  const handleOpenAuction = (plan: BenchmarkItem) => {
-    const url = buildAuctionURL(plan);
-    window.open(url, '_blank');
-    setOpenedItems(prev => new Set(prev).add(plan.target_item));
+  const setNumber = (key: keyof AuctionProfile, value: string) => {
+    setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
   };
 
-  const handleOpenAllAuctions = () => {
+  // 각 부위별로 모든 장비 옵션 검색
+  const searchAllEquipmentOptions = async () => {
     if (!benchmark) return;
-    benchmark.minimum_plan.forEach((plan, index) => {
-      setTimeout(() => {
-        handleOpenAuction(plan);
-      }, index * 300); // 300ms 간격으로 열기
-    });
+    if (!Number.isInteger(profile.accountId) || !Number.isInteger(profile.characterId) || !Number.isInteger(profile.worldId) || profile.accountId <= 0 || profile.characterId <= 0 || profile.worldId <= 0) {
+      setError('Account ID, Character ID, World ID를 모두 입력해주세요.');
+      return;
+    }
+
+    setIsSearching(true);
+    setError(null);
+    setOptimalSets([]);
+    
+    // 검색할 부위 목록
+    const partsToSearch = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식'];
+    const allOptimalSets: OptimalSet[] = [];
+
+    try {
+      let searchCount = 0;
+      
+      for (const part of partsToSearch) {
+        const equipmentOptions = getAllEquipmentOptions(part);
+        if (equipmentOptions.length === 0) continue;
+
+        setProgress(`${part} 검색 중... (${searchCount}/${partsToSearch.length})`);
+        
+        const partResults: EquipmentSearchResult[] = [];
+
+        // 각 부위의 모든 장비 옵션 검색
+        for (const equipment of equipmentOptions) {
+          try {
+            const result = await searchAuction(profile, {
+              keyword: equipment.name,
+              itemCategory: { itemDetailCategory: 'ARMOR' },
+              enhancementOption: {
+                starforceMin: 17,
+                starforceMax: 17,
+                potentialGrade: 3, // 유니크
+                additionalPotentialGrade: 2, // 에픽
+              },
+            });
+
+            const prices = result.data.items
+              .map((item) => toNumber(item.pricePerItem || item.price))
+              .filter((price) => price > 0);
+            
+            const attackPowers = result.data.items
+              .map((item) => item.attackPowerDiff || 0)
+              .filter((power) => power > 0);
+
+            const lowestPrice = prices.length ? Math.min(...prices) : null;
+            const avgAttackPower = attackPowers.length ? Math.round(attackPowers.reduce((sum, p) => sum + p, 0) / attackPowers.length) : 0;
+            const efficiency = lowestPrice && avgAttackPower ? (avgAttackPower / lowestPrice) * 1000000000 : 0;
+
+            partResults.push({
+              equipment,
+              lowestPrice,
+              medianPrice: median(prices),
+              avgAttackPowerDiff: avgAttackPower,
+              listingCount: result.data.total,
+              efficiency,
+              topItem: result.data.items[0],
+            });
+
+            setRemaining(result.remaining);
+          } catch (err) {
+            console.error(`${equipment.name} 검색 실패:`, err);
+          }
+        }
+
+        // 효율 높은 순으로 정렬
+        partResults.sort((a, b) => b.efficiency - a.efficiency);
+
+        if (partResults.length > 0) {
+          allOptimalSets.push({
+            part,
+            selected: partResults[0], // 가장 효율 좋은 것
+            alternatives: partResults.slice(1, 5), // 대안 4개
+          });
+        }
+
+        searchCount++;
+        setOptimalSets([...allOptimalSets]);
+      }
+
+      setProgress(`✓ 검색 완료! ${partsToSearch.length}개 부위의 최적 템셋을 분석했습니다.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '옥션 검색에 실패했습니다.');
+      setProgress('');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   if (!benchmark) return null;
+
+  const isProfileValid = Number.isInteger(profile.accountId) && Number.isInteger(profile.characterId) && Number.isInteger(profile.worldId) && profile.accountId > 0 && profile.characterId > 0 && profile.worldId > 0;
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
@@ -66,112 +159,237 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
             <div className="p-2 bg-maple-orange/10 rounded-lg">
               <ShoppingCart className="h-6 w-6 text-maple-orange" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">경매장 시세 확인</h3>
+            <h3 className="text-xl font-bold text-gray-900">🎯 옥션 기반 최적 템셋 자동 추천</h3>
           </div>
           <p className="mt-2 max-w-3xl text-sm text-gray-600">
-            목표 세팅 {benchmark.minimum_plan.length}개의 실시간 경매장 가격을 직접 확인하세요.
+            메이플 옥션에서 {benchmark.minimum_plan.length}개 핵심 장비의 실시간 시세를 자동으로 검색하여 최적의 템셋을 추천합니다.
           </p>
         </div>
+        {remaining !== null && (
+          <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-700">오늘 잔여 {remaining}회</span>
+          </div>
+        )}
       </div>
 
       {/* 안내 메시지 */}
       <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 p-4">
         <div className="flex items-start gap-3">
-          <Search className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+          <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold text-blue-900">경매장에서 직접 확인하는 방법</p>
+            <p className="font-semibold text-blue-900">자동 템셋 추천 시스템</p>
             <p className="mt-1 text-sm text-blue-700">
-              각 장비의 "경매장에서 보기" 버튼을 클릭하면 해당 조건으로 검색된 경매장 페이지가 새 탭으로 열립니다.
-              메이플스토리 경매장에 로그인되어 있어야 가격을 확인할 수 있습니다.
+              1. Chrome 확장 프로그램 설치 및 메이플 옥션 로그인<br/>
+              2. Account ID, Character ID, World ID 입력<br/>
+              3. "자동 템셋 검색 시작" 버튼 클릭<br/>
+              4. 옥션에서 실시간 가격을 자동으로 검색하여 최적의 조합을 보여드립니다
             </p>
           </div>
         </div>
       </div>
 
-      {/* 일괄 열기 버튼 */}
-      <div className="mb-6">
+      {/* 입력 폼 */}
+      <div className="rounded-xl bg-gray-50 p-6 mb-6">
+        <p className="text-sm font-semibold text-gray-700 mb-4">📋 옥션 연결 정보 입력</p>
+        
+        <div className="grid gap-4 md:grid-cols-3 mb-4">
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">Account ID</span>
+            <input 
+              value={profile.accountId || ''} 
+              onChange={(event) => setNumber('accountId', event.target.value)} 
+              inputMode="numeric" 
+              placeholder="예: 108912176" 
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition" 
+              disabled={isSearching}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">Character ID</span>
+            <input 
+              value={profile.characterId || ''} 
+              onChange={(event) => setNumber('characterId', event.target.value)} 
+              inputMode="numeric" 
+              placeholder="예: 29662388" 
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition" 
+              disabled={isSearching}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">World ID</span>
+            <input 
+              value={profile.worldId || ''} 
+              onChange={(event) => setNumber('worldId', event.target.value)} 
+              inputMode="numeric" 
+              placeholder="예: 8 (크로아)" 
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition" 
+              disabled={isSearching}
+            />
+          </label>
+        </div>
+
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700 mb-4">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-semibold">개인정보 보호</p>
+            <p className="mt-1">이 값들은 브라우저 확장 프로그램에서만 사용되며, 서버로 전송되거나 저장되지 않습니다.</p>
+          </div>
+        </div>
+
+        {/* 메인 검색 버튼 */}
         <button 
-          onClick={handleOpenAllAuctions}
-          className="w-full inline-flex items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-maple-orange to-orange-600 px-6 py-4 text-base font-bold text-white shadow-lg transition hover:shadow-xl hover:scale-[1.02]"
+          onClick={searchAllEquipmentOptions} 
+          disabled={isSearching || !isProfileValid}
+          className="w-full inline-flex items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-maple-orange to-orange-600 px-6 py-4 text-base font-bold text-white shadow-lg transition hover:shadow-xl hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
         >
-          <ExternalLink className="h-5 w-5" />
-          🎯 전체 {benchmark.minimum_plan.length}개 경매장에서 한번에 열기
+          {isSearching ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              옥션 검색 중... ({optimalSets.length}/12개 부위)
+            </>
+          ) : (
+            <>
+              <Zap className="h-5 w-5" />
+              🚀 모든 장비 자동 검색 & 최적 템셋 추천
+            </>
+          )}
         </button>
-        <p className="mt-2 text-center text-xs text-gray-500">
-          각 아이템이 새 탭으로 열립니다 (팝업 차단을 해제해주세요)
-        </p>
+
+        {!isProfileValid && !isSearching && (
+          <p className="mt-3 text-center text-sm text-gray-500">
+            ⬆️ Account ID, Character ID, World ID를 모두 입력해주세요
+          </p>
+        )}
       </div>
 
-      {/* 아이템 목록 */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {benchmark.minimum_plan.map((plan) => {
-          const isOpened = openedItems.has(plan.target_item);
-          return (
-            <article 
-              key={plan.target_item} 
-              className={`rounded-xl border-2 p-5 transition ${
-                isOpened 
-                  ? 'border-emerald-300 bg-emerald-50' 
-                  : 'border-gray-200 bg-white hover:border-maple-orange'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <p className="text-xs font-bold text-gray-500">{plan.equipment_part}</p>
-                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded">
-                  ★{plan.target_starforce}
-                </span>
-              </div>
-              
-              <p className="text-sm font-bold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]">
-                {plan.target_item}
-              </p>
-              
-              <div className="mb-3 pb-3 border-b border-gray-100">
-                <p className="text-xs text-gray-500 mb-1">목표 옵션</p>
-                <p className="text-xs font-semibold text-gray-700">{plan.target_potential}</p>
-              </div>
-              
-              <div className="mb-3">
-                <p className="text-xs text-gray-500 mb-1">예상 비용</p>
-                <p className="text-base font-bold text-maple-orange">
-                  {plan.estimated_cost >= 100000000 
-                    ? `${(plan.estimated_cost / 100000000).toFixed(1)}억` 
-                    : `${(plan.estimated_cost / 10000).toFixed(0)}만`}
-                </p>
-              </div>
-              
-              <button
-                onClick={() => handleOpenAuction(plan)}
-                className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition ${
-                  isOpened
-                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    : 'bg-maple-orange text-white hover:bg-maple-orange/90'
-                }`}
-              >
-                <ExternalLink className="h-4 w-4" />
-                {isOpened ? '다시 보기' : '경매장에서 보기'}
-              </button>
-              
-              {isOpened && (
-                <p className="mt-2 text-center text-xs text-emerald-600 font-semibold">
-                  ✓ 새 탭으로 열림
-                </p>
+      {/* 진행 상태 */}
+      {progress && (
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-4">
+          <div className="flex items-center gap-3">
+            {isSearching && <Loader2 className="h-5 w-5 animate-spin text-blue-600" />}
+            {!isSearching && <CheckCircle2 className="h-5 w-5 text-blue-600" />}
+            <div className="flex-1">
+              <p className="font-semibold text-blue-900">{progress}</p>
+              {isSearching && (
+                <div className="mt-2 h-2 bg-blue-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${(optimalSets.length / 12) * 100}%` }}
+                  />
+                </div>
               )}
-            </article>
-          );
-        })}
-      </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
+      )}
+      {/* 최적 템셋 결과 */}
+      {optimalSets.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-2xl font-bold text-gray-900">⚡ 최적 템셋 추천</h4>
+            <p className="text-sm text-gray-600">{optimalSets.length}개 부위 분석 완료</p>
+          </div>
 
-      {/* 하단 안내 */}
-      <div className="mt-6 rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
-        <p className="font-semibold mb-2">💡 팁</p>
-        <ul className="space-y-1 text-xs">
-          <li>• 경매장에 로그인되어 있어야 가격을 확인할 수 있습니다</li>
-          <li>• 각 아이템의 최저가와 평균가를 비교해서 구매하세요</li>
-          <li>• 예상 비용은 참고용이며, 실제 시세는 서버마다 다를 수 있습니다</li>
-          <li>• 여러 개의 탭이 열리므로 팝업 차단을 해제해주세요</li>
-        </ul>
-      </div>
+          {/* 총 예상 비용 */}
+          <div className="mb-6 rounded-xl bg-gradient-to-r from-maple-orange/10 to-orange-100 border-2 border-maple-orange p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">💰 총 예상 비용</p>
+                <p className="text-3xl font-extrabold text-maple-orange">
+                  {formatMesos(optimalSets.reduce((sum, set) => sum + (set.selected.lowestPrice || 0), 0))}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-1">⚡ 총 전투력 증가</p>
+                <p className="text-3xl font-extrabold text-blue-600">
+                  +{optimalSets.reduce((sum, set) => sum + set.selected.avgAttackPowerDiff, 0).toLocaleString()}만
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-1">📊 평균 효율</p>
+                <p className="text-3xl font-extrabold text-emerald-600">
+                  {(optimalSets.reduce((sum, set) => sum + set.selected.efficiency, 0) / optimalSets.length).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 부위별 최적 장비 */}
+          <div className="space-y-4">
+            {optimalSets.map((optimalSet) => (
+              <div key={optimalSet.part} className="rounded-xl border-2 border-gray-200 bg-white p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <h5 className="text-lg font-bold text-gray-900">{optimalSet.part}</h5>
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+                    최고 효율
+                  </span>
+                </div>
+
+                {/* 선택된 장비 */}
+                <div className="p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{optimalSet.selected.equipment.name}</p>
+                      <p className="text-xs text-gray-500">{optimalSet.selected.equipment.set} 세트</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-extrabold text-maple-orange">
+                        {formatMesos(optimalSet.selected.lowestPrice)}
+                      </p>
+                      <p className="text-xs text-gray-500">매물 {optimalSet.selected.listingCount}개</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-2 pt-2 border-t border-emerald-200">
+                    <div>
+                      <p className="text-xs text-gray-500">전투력</p>
+                      <p className="text-sm font-bold text-blue-600">+{optimalSet.selected.avgAttackPowerDiff.toLocaleString()}만</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">효율</p>
+                      <p className="text-sm font-bold text-emerald-600">{optimalSet.selected.efficiency.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 대안 장비들 */}
+                {optimalSet.alternatives.length > 0 && (
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-900 font-semibold">
+                      다른 옵션 {optimalSet.alternatives.length}개 보기
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {optimalSet.alternatives.map((alt, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-gray-50 border border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{alt.equipment.name}</p>
+                              <p className="text-xs text-gray-500">{alt.equipment.set} · 효율 {alt.efficiency.toFixed(2)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-gray-700">{formatMesos(alt.lowestPrice)}</p>
+                              <p className="text-xs text-gray-500">+{alt.avgAttackPowerDiff.toLocaleString()}만</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
