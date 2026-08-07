@@ -112,26 +112,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 경매장 검색 섹션 */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
+      {/* 로그인된 경매장 탭에서만 실행되는 가격 조회 */}
+      {searchData.data?.benchmark && <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-3 mb-6">
             <ShoppingCart className="w-8 h-8 text-maple-orange" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              경매장 실시간 시세 검색
-            </h2>
-            <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
-              베타 (비공식 API)
-            </span>
+            <h2 className="text-2xl font-bold text-gray-900">경매장 기반 목표 세팅</h2>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl">
-            실시간 경매장 데이터를 웹소켓으로 받아옵니다. 아이템명으로 검색하여 현재 시세를 확인하세요.
-            <br />
-            <strong className="text-red-600">주의:</strong> 비공식 웹소켓을 사용하므로 넥슨 약관 위반 소지가 있으며, 언제든 차단될 수 있습니다.
-          </p>
-          <AuctionSearch />
+          <p className="text-gray-600 mb-6 max-w-2xl">목표 전투력 기준의 최소 세팅을 로그인된 메이플 옥션에서 직접 조회해, 실제 매물 가격으로 비교합니다.</p>
+          <AuctionSearch benchmark={searchData.data.benchmark} />
         </div>
-      </section>
+      </section>}
 
       {/* 푸터 정보 */}
       <footer className="bg-gray-900 text-gray-400 py-12 px-4">
