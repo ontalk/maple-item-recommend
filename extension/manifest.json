@@ -8,7 +8,8 @@
     "https://auction.maplestory.nexon.com/*",
     "https://api.mskr.nexon.com/*",
     "http://localhost:3000/*",
-    "http://127.0.0.1:3000/*"
+    "http://127.0.0.1:3000/*",
+    "https://maple-item-recommend.vercel.app/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -16,9 +17,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+      "matches": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "https://maple-item-recommend.vercel.app/*"
+      ],
       "js": ["app-bridge.js"],
       "run_at": "document_start"
     }
   ]
 }
+
