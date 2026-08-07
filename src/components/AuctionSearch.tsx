@@ -43,6 +43,7 @@ function median(values: number[]): number | null {
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
   const [profile, setProfile] = useState<AuctionProfile>({ accountId: 0, characterId: 0, worldId: 5 });
+  const [jobClass, setJobClass] = useState<string>('파이렛'); // 직업 선택
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -55,12 +56,19 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
 
   // 각 부위별로 모든 장비 옵션 검색
   const searchAllEquipmentOptions = async () => {
-    if (!benchmark) return;
+    console.log('🚀 검색 시작!', { benchmark, profile });
+    
+    if (!benchmark) {
+      console.error('❌ benchmark가 없습니다');
+      return;
+    }
     if (!Number.isInteger(profile.accountId) || !Number.isInteger(profile.characterId) || !Number.isInteger(profile.worldId) || profile.accountId <= 0 || profile.characterId <= 0 || profile.worldId <= 0) {
       setError('Account ID, Character ID, World ID를 모두 입력해주세요.');
+      console.error('❌ Profile 정보가 올바르지 않습니다', profile);
       return;
     }
 
+    console.log('✅ 검색 조건 확인 완료, 검색 시작합니다');
     setIsSearching(true);
     setError(null);
     setOptimalSets([]);
@@ -73,8 +81,14 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
       let searchCount = 0;
       
       for (const part of partsToSearch) {
+        console.log(`\n📦 ${part} 부위 검색 중...`);
         const equipmentOptions = getAllEquipmentOptions(part);
-        if (equipmentOptions.length === 0) continue;
+        console.log(`  └─ 검색할 장비 옵션 ${equipmentOptions.length}개:`, equipmentOptions.map(e => e.name));
+        
+        if (equipmentOptions.length === 0) {
+          console.warn(`  └─ ⚠️ ${part} 부위에 검색할 장비가 없습니다`);
+          continue;
+        }
 
         setProgress(`${part} 검색 중... (${searchCount}/${partsToSearch.length})`);
         
@@ -82,6 +96,29 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
 
         // 각 부위의 모든 장비 옵션 검색
         for (const equipment of equipmentOptions) {
+          // 직업별 장비 필터링 (방어구/무기만)
+          const isArmorOrWeapon = ['모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '무기'].includes(part);
+          const jobSuffixes = ['나이트', '메이지', '아처', '시프', '파이렛'];
+          
+          // 방어구/무기는 직업에 맞는 것만 검색
+          if (isArmorOrWeapon) {
+            const hasJobSuffix = jobSuffixes.some(suffix => equipment.name.includes(suffix));
+            if (hasJobSuffix) {
+              const jobMapping: Record<string, string> = {
+                '워리어': '나이트',
+                '마법사': '메이지',
+                '궁수': '아처',
+                '도적': '시프',
+                '해적': '파이렛',
+              };
+              const targetSuffix = jobMapping[jobClass] || jobClass;
+              if (!equipment.name.includes(targetSuffix)) {
+                console.log(`  └─ ⏭️ ${equipment.name} 스킵 (${jobClass}가 아님)`);
+                continue; // 다른 직업 장비는 스킵
+              }
+            }
+          }
+          
           try {
             const result = await searchAuction(profile, {
               keyword: equipment.name,
@@ -193,7 +230,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
       <div className="rounded-xl bg-gray-50 p-6 mb-6">
         <p className="text-sm font-semibold text-gray-700 mb-4">📋 옥션 연결 정보 입력</p>
         
-        <div className="grid gap-4 md:grid-cols-3 mb-4">
+        <div className="grid gap-4 md:grid-cols-4 mb-4">
           <label className="block">
             <span className="text-xs font-semibold text-gray-600 mb-1 block">Account ID</span>
             <input 
@@ -201,7 +238,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               onChange={(event) => setNumber('accountId', event.target.value)} 
               inputMode="numeric" 
               placeholder="예: 108912176" 
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition" 
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
               disabled={isSearching}
             />
           </label>
@@ -212,7 +249,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               onChange={(event) => setNumber('characterId', event.target.value)} 
               inputMode="numeric" 
               placeholder="예: 29662388" 
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition" 
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
               disabled={isSearching}
             />
           </label>
@@ -223,9 +260,24 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               onChange={(event) => setNumber('worldId', event.target.value)} 
               inputMode="numeric" 
               placeholder="예: 8 (크로아)" 
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition" 
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
               disabled={isSearching}
             />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">직업</span>
+            <select
+              value={jobClass}
+              onChange={(e) => setJobClass(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition bg-white"
+              disabled={isSearching}
+            >
+              <option value="워리어">워리어 (전사)</option>
+              <option value="마법사">마법사</option>
+              <option value="궁수">궁수</option>
+              <option value="도적">도적</option>
+              <option value="해적">해적</option>
+            </select>
           </label>
         </div>
 

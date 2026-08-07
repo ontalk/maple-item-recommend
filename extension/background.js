@@ -1,6 +1,6 @@
 const AUCTION_ORIGIN = 'https://auction.maplestory.nexon.com/*';
 const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
-const MAX_DAILY_SEARCHES = 90;
+const MAX_DAILY_SEARCHES = 100; // 넥슨 API 하루 100회 제한
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const cache = new Map();
@@ -37,27 +37,55 @@ function getPayload(message) {
 
 async function runSearchInAuctionPage(payload) {
   const tabs = await chrome.tabs.query({ url: [AUCTION_ORIGIN] });
-  const tab = tabs.find((candidate) => candidate.id);
-  if (!tab?.id) throw new Error('메이플 옥션 탭을 열고 로그인한 뒤 다시 시도해주세요.');
+  
+  // 활성 탭 우선, 없으면 가장 최근 탭
+  const activeTab = tabs.find((t) => t.active);
+  const tab = activeTab || tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+  
+  if (!tab?.id) {
+    throw new Error('메이플 옥션 탭을 열고 로그인한 뒤 다시 시도해주세요. (현재 열린 옥션 탭: 0개)');
+  }
 
-  const execution = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    world: 'MAIN',
-    args: [SEARCH_URL, payload],
-    func: async (url, body) => {
-      const response = await fetch(url, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const text = await response.text();
-      if (!response.ok) throw new Error(`경매장 검색 실패 (${response.status}): ${text.slice(0, 200)}`);
-      return JSON.parse(text);
-    },
-  });
+  console.log(`🔍 옥션 탭 발견 (ID: ${tab.id}, 제목: ${tab.title})`);
 
-  return execution[0]?.result;
+  try {
+    // ISOLATED world 사용 (더 안전)
+    const execution = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'ISOLATED', // MAIN 대신 ISOLATED 사용
+      args: [SEARCH_URL, payload],
+      func: async (url, body) => {
+        try {
+          console.log('🔍 옥션 검색 요청 시작:', body);
+          const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+          });
+          
+          const text = await response.text();
+          console.log('📦 옥션 API 응답:', response.status, text.slice(0, 200));
+          
+          if (!response.ok) {
+            throw new Error(`경매장 검색 실패 (${response.status}): ${text.slice(0, 200)}`);
+          }
+          
+          return JSON.parse(text);
+        } catch (err) {
+          console.error('❌ 옥션 검색 에러:', err);
+          throw err;
+        }
+      },
+    });
+
+    return execution[0]?.result;
+  } catch (err) {
+    console.error('❌ executeScript 실패:', err);
+    throw new Error(`스크립트 실행 실패: ${err.message}`);
+  }
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
