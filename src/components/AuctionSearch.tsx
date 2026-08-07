@@ -1,149 +1,177 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Search, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Search, ShoppingCart } from 'lucide-react';
 import type { BenchmarkComparison, BenchmarkItem } from '@/types';
-import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
 
-interface PriceResult {
-  plan: BenchmarkItem;
-  lowestPrice: number | null;
-  medianPrice: number | null;
-  listingCount: number;
-  cached: boolean;
-  sample?: AuctionRawItem;
+// 잠재옵션 등급을 URL 파라미터로 변환
+function getPotentialGradeParam(grade: string): string {
+  if (grade.includes('유니크')) return 'unique';
+  if (grade.includes('레어')) return 'rare';
+  if (grade.includes('에픽')) return 'epic';
+  if (grade.includes('레전드')) return 'legendary';
+  return 'unique'; // 기본값
 }
 
-function toNumber(value: string): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatMesos(value: number | null): string {
-  if (value === null) return '매물 없음';
-  if (value >= 100000000) return `${(value / 100000000).toFixed(1)}억`;
-  if (value >= 10000) return `${(value / 10000).toFixed(0)}만`;
-  return value.toLocaleString();
-}
-
-function median(values: number[]): number | null {
-  if (!values.length) return null;
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+// 경매장 검색 URL 생성
+function buildAuctionURL(plan: BenchmarkItem): string {
+  const baseURL = 'https://auction.maplestory.nexon.com/buy';
+  const params = new URLSearchParams({
+    searchTab: 'condition',
+    keyword: plan.target_item,
+    isExactMatch: 'false',
+    page: '1',
+    limit: '20',
+    sortType: 'PRICE_PER_ITEM_ASC',
+    itemCategory: 'ARMOR',
+    'enhancementOption::starforceMin': plan.target_starforce.toString(),
+    'enhancementOption::starforceMax': plan.target_starforce.toString(),
+    'enhancementOption::potentialGrade': getPotentialGradeParam(plan.target_potential),
+  });
+  
+  // 에디셔널 잠재 조건 추가 (있는 경우)
+  if (plan.target_potential.includes('에디')) {
+    params.append('enhancementOption::additionalPotentialGrade', 'epic');
+  }
+  
+  return `${baseURL}?${params.toString()}`;
 }
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
-  const [profile, setProfile] = useState<AuctionProfile>({ accountId: 0, characterId: 0, worldId: 5 });
-  const [isSearching, setIsSearching] = useState(false);
-  const [progress, setProgress] = useState('');
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<PriceResult[]>([]);
+  const [openedItems, setOpenedItems] = useState<Set<string>>(new Set());
 
-  const setNumber = (key: keyof AuctionProfile, value: string) => {
-    setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
+  const handleOpenAuction = (plan: BenchmarkItem) => {
+    const url = buildAuctionURL(plan);
+    window.open(url, '_blank');
+    setOpenedItems(prev => new Set(prev).add(plan.target_item));
   };
 
-  const searchPlans = async () => {
+  const handleOpenAllAuctions = () => {
     if (!benchmark) return;
-    if (!Number.isInteger(profile.accountId) || !Number.isInteger(profile.characterId) || !Number.isInteger(profile.worldId) || profile.accountId <= 0 || profile.characterId <= 0 || profile.worldId <= 0) {
-      setError('경매장 Network에서 확인한 accountId, characterId, worldId를 모두 입력해주세요. 이 값은 서버에 저장되지 않습니다.');
-      return;
-    }
-
-    setIsSearching(true);
-    setError(null);
-    setResults([]);
-    const nextResults: PriceResult[] = [];
-
-    try {
-      for (const [index, plan] of benchmark.minimum_plan.entries()) {
-        setProgress(`${index + 1}/${benchmark.minimum_plan.length} · ${plan.target_item} 시세 조회 중`);
-        const result = await searchAuction(profile, {
-          keyword: plan.target_item,
-          itemCategory: { itemDetailCategory: 'ARMOR' },
-          enhancementOption: {
-            starforceMin: plan.target_starforce,
-            starforceMax: plan.target_starforce,
-            potentialGrade: 3,
-            additionalPotentialGrade: 2,
-          },
-        });
-        const prices = result.data.items.map((item) => toNumber(item.pricePerItem || item.price)).filter((price) => price > 0);
-        nextResults.push({
-          plan,
-          lowestPrice: prices.length ? Math.min(...prices) : null,
-          medianPrice: median(prices),
-          listingCount: result.data.total,
-          cached: result.cached,
-          sample: result.data.items[0],
-        });
-        setResults([...nextResults]);
-        setRemaining(result.remaining);
-      }
-      setProgress('조회 완료 · 가격은 최저가와 표시된 20개 매물의 중앙값입니다.');
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '경매장 시세를 조회하지 못했습니다.');
-      setProgress('');
-    } finally {
-      setIsSearching(false);
-    }
+    benchmark.minimum_plan.forEach((plan, index) => {
+      setTimeout(() => {
+        handleOpenAuction(plan);
+      }, index * 300); // 300ms 간격으로 열기
+    });
   };
 
   if (!benchmark) return null;
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <section className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
+      {/* 헤더 */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-maple-orange">
-            <Search className="h-5 w-5" />
-            <p className="text-sm font-bold">로그인된 메이플 옥션으로 자동 시세 조회</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-maple-orange/10 rounded-lg">
+              <ShoppingCart className="h-6 w-6 text-maple-orange" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">경매장 시세 확인</h3>
           </div>
-          <p className="mt-1 max-w-3xl text-xs text-gray-500">목표 세팅의 핵심 {benchmark.minimum_plan.length}개를 순차 검색합니다. 로그인 쿠키·비밀번호는 앱이나 서버로 전달·저장하지 않습니다.</p>
+          <p className="mt-2 max-w-3xl text-sm text-gray-600">
+            목표 세팅 {benchmark.minimum_plan.length}개의 실시간 경매장 가격을 직접 확인하세요.
+          </p>
         </div>
-        {remaining !== null && <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">오늘 안전 검색 잔여 {remaining}회</span>}
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-4">
-        <label className="text-xs font-semibold text-gray-600">Account ID
-          <input value={profile.accountId || ''} onChange={(event) => setNumber('accountId', event.target.value)} inputMode="numeric" placeholder="Network의 accountId" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-        </label>
-        <label className="text-xs font-semibold text-gray-600">Character ID
-          <input value={profile.characterId || ''} onChange={(event) => setNumber('characterId', event.target.value)} inputMode="numeric" placeholder="Network의 characterId" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-        </label>
-        <label className="text-xs font-semibold text-gray-600">World ID
-          <input value={profile.worldId || ''} onChange={(event) => setNumber('worldId', event.target.value)} inputMode="numeric" placeholder="예: 5" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-        </label>
-        <button onClick={searchPlans} disabled={isSearching} className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-maple-orange px-4 py-2 text-sm font-bold text-white transition hover:bg-maple-orange/90 disabled:cursor-not-allowed disabled:opacity-60">
-          {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {isSearching ? '조회 중' : '목표 세팅 자동 조회'}
+      {/* 안내 메시지 */}
+      <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 p-4">
+        <div className="flex items-start gap-3">
+          <Search className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-blue-900">경매장에서 직접 확인하는 방법</p>
+            <p className="mt-1 text-sm text-blue-700">
+              각 장비의 "경매장에서 보기" 버튼을 클릭하면 해당 조건으로 검색된 경매장 페이지가 새 탭으로 열립니다.
+              메이플스토리 경매장에 로그인되어 있어야 가격을 확인할 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 일괄 열기 버튼 */}
+      <div className="mb-6">
+        <button 
+          onClick={handleOpenAllAuctions}
+          className="w-full inline-flex items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-maple-orange to-orange-600 px-6 py-4 text-base font-bold text-white shadow-lg transition hover:shadow-xl hover:scale-[1.02]"
+        >
+          <ExternalLink className="h-5 w-5" />
+          🎯 전체 {benchmark.minimum_plan.length}개 경매장에서 한번에 열기
         </button>
+        <p className="mt-2 text-center text-xs text-gray-500">
+          각 아이템이 새 탭으로 열립니다 (팝업 차단을 해제해주세요)
+        </p>
       </div>
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-        <p>Chrome 확장 프로그램을 먼저 설치하고, 별도 탭에서 메이플 옥션에 로그인해 두세요. Account/Character ID는 현재 브라우저 메모리에만 사용됩니다.</p>
-      </div>
-
-      {progress && <p className="mt-4 text-sm font-medium text-gray-700">{progress}</p>}
-      {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-
-      {results.length > 0 && (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {results.map((result) => (
-            <article key={result.plan.target_item} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-[11px] font-bold text-gray-500">{result.plan.equipment_part} · ★{result.plan.target_starforce}</p>
-              <p className="mt-1 truncate text-sm font-bold text-gray-900">{result.plan.target_item}</p>
-              <p className="mt-3 text-xs text-gray-500">최저가</p>
-              <p className="text-lg font-extrabold text-maple-orange">{formatMesos(result.lowestPrice)}</p>
-              <p className="mt-2 text-xs text-gray-500">표시 20개 중앙값 · 전체 {result.listingCount.toLocaleString()}개</p>
-              <p className="text-sm font-semibold text-gray-700">{formatMesos(result.medianPrice)} {result.cached && <span className="text-[10px] text-emerald-600">캐시</span>}</p>
+      {/* 아이템 목록 */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {benchmark.minimum_plan.map((plan) => {
+          const isOpened = openedItems.has(plan.target_item);
+          return (
+            <article 
+              key={plan.target_item} 
+              className={`rounded-xl border-2 p-5 transition ${
+                isOpened 
+                  ? 'border-emerald-300 bg-emerald-50' 
+                  : 'border-gray-200 bg-white hover:border-maple-orange'
+              }`}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-xs font-bold text-gray-500">{plan.equipment_part}</p>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded">
+                  ★{plan.target_starforce}
+                </span>
+              </div>
+              
+              <p className="text-sm font-bold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]">
+                {plan.target_item}
+              </p>
+              
+              <div className="mb-3 pb-3 border-b border-gray-100">
+                <p className="text-xs text-gray-500 mb-1">목표 옵션</p>
+                <p className="text-xs font-semibold text-gray-700">{plan.target_potential}</p>
+              </div>
+              
+              <div className="mb-3">
+                <p className="text-xs text-gray-500 mb-1">예상 비용</p>
+                <p className="text-base font-bold text-maple-orange">
+                  {plan.estimated_cost >= 100000000 
+                    ? `${(plan.estimated_cost / 100000000).toFixed(1)}억` 
+                    : `${(plan.estimated_cost / 10000).toFixed(0)}만`}
+                </p>
+              </div>
+              
+              <button
+                onClick={() => handleOpenAuction(plan)}
+                className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition ${
+                  isOpened
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    : 'bg-maple-orange text-white hover:bg-maple-orange/90'
+                }`}
+              >
+                <ExternalLink className="h-4 w-4" />
+                {isOpened ? '다시 보기' : '경매장에서 보기'}
+              </button>
+              
+              {isOpened && (
+                <p className="mt-2 text-center text-xs text-emerald-600 font-semibold">
+                  ✓ 새 탭으로 열림
+                </p>
+              )}
             </article>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
+
+      {/* 하단 안내 */}
+      <div className="mt-6 rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
+        <p className="font-semibold mb-2">💡 팁</p>
+        <ul className="space-y-1 text-xs">
+          <li>• 경매장에 로그인되어 있어야 가격을 확인할 수 있습니다</li>
+          <li>• 각 아이템의 최저가와 평균가를 비교해서 구매하세요</li>
+          <li>• 예상 비용은 참고용이며, 실제 시세는 서버마다 다를 수 있습니다</li>
+          <li>• 여러 개의 탭이 열리므로 팝업 차단을 해제해주세요</li>
+        </ul>
+      </div>
     </section>
   );
 }
