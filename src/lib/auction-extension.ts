@@ -46,6 +46,7 @@ export interface AuctionSearchResult {
 export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFilters): Promise<AuctionSearchResult> {
   if (typeof window === 'undefined') return Promise.reject(new Error('브라우저에서만 경매장을 조회할 수 있습니다.'));
 
+  // Extension에 메시지 전송
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
@@ -66,11 +67,32 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
     };
 
     window.addEventListener('message', onMessage);
-    window.postMessage({
-      source: 'maple-item-recommend',
-      type: 'AUCTION_SEARCH',
-      requestId,
-      payload: { ...profile, filters, page: filters.page || 1, limit: filters.limit || 20 },
-    }, window.location.origin);
+    
+    // Chrome Extension으로 메시지 전송
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage(
+        {
+          source: 'maple-item-recommend',
+          type: 'AUCTION_SEARCH',
+          requestId,
+          payload: { ...profile, filters, page: filters.page || 1, limit: filters.limit || 20 },
+        },
+        (response) => {
+          cleanup();
+          if (chrome.runtime.lastError) {
+            reject(new Error(`Extension 통신 실패: ${chrome.runtime.lastError.message}`));
+            return;
+          }
+          if (!response?.ok) {
+            reject(new Error(response?.error || '경매장 검색에 실패했습니다.'));
+            return;
+          }
+          resolve({ data: response.data, cached: Boolean(response.cached), remaining: Number(response.remaining) });
+        }
+      );
+    } else {
+      cleanup();
+      reject(new Error('Chrome Extension이 설치되지 않았거나 연결되지 않았습니다.'));
+    }
   });
 }

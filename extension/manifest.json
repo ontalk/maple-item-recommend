@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Maple Item Recommend Auction Connector",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Uses the currently signed-in Maple Auction tab to return auction search results to the local recommendation app.",
   "permissions": ["scripting", "tabs"],
   "host_permissions": [
@@ -18,15 +18,6 @@
   "content_scripts": [
     {
       "matches": [
-        "http://localhost:3000/*",
-        "http://127.0.0.1:3000/*",
-        "https://maple-item-recommend.vercel.app/*"
-      ],
-      "js": ["app-bridge.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
         "https://auction.maplestory.nexon.com/*"
       ],
       "js": ["auction-injector.js"],
@@ -40,4 +31,3 @@
     }
   ]
 }
-

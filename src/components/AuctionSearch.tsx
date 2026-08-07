@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Search, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
-import type { BenchmarkComparison, BenchmarkItem } from '@/types';
+import { Loader2, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
+import type { BenchmarkComparison } from '@/types';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
 
@@ -54,6 +54,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
   };
 
+  // Delay helper
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   // 각 부위별로 모든 장비 옵션 검색
   const searchAllEquipmentOptions = async () => {
     console.log('🚀 검색 시작!', { benchmark, profile });
@@ -79,6 +82,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
 
     try {
       let searchCount = 0;
+      let totalSearched = 0; // 전체 검색 카운트 (Rate Limiting용)
       
       for (const part of partsToSearch) {
         console.log(`\n📦 ${part} 부위 검색 중...`);
@@ -151,7 +155,6 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               // 첫 페이지만 카운트 소모
               if (currentPage === 1) {
                 totalSearched++;
-                remainingCount = result.remaining;
                 setRemaining(result.remaining);
                 console.log(`  └─ 총 ${result.data.total}개 매물 발견, ${result.data.totalPages}페이지`);
               }
