@@ -24,6 +24,13 @@
       ],
       "js": ["app-bridge.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://auction.maplestory.nexon.com/*"
+      ],
+      "js": ["auction-injector.js"],
+      "run_at": "document_start"
     }
   ]
 }

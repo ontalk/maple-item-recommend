@@ -1,5 +1,4 @@
 const AUCTION_ORIGIN = 'https://auction.maplestory.nexon.com/*';
-const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
 const MAX_DAILY_SEARCHES = 100; // 넥슨 API 하루 100회 제한
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -38,6 +37,9 @@ function getPayload(message) {
 async function runSearchInAuctionPage(payload) {
   const tabs = await chrome.tabs.query({ url: [AUCTION_ORIGIN] });
   
+  console.log(`🔍 옥션 탭 검색 결과: ${tabs.length}개 발견`);
+  tabs.forEach((t, i) => console.log(`  탭 ${i + 1}: ID=${t.id}, active=${t.active}, title=${t.title}`));
+  
   // 활성 탭 우선, 없으면 가장 최근 탭
   const activeTab = tabs.find((t) => t.active);
   const tab = activeTab || tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
@@ -46,46 +48,38 @@ async function runSearchInAuctionPage(payload) {
     throw new Error('메이플 옥션 탭을 열고 로그인한 뒤 다시 시도해주세요. (현재 열린 옥션 탭: 0개)');
   }
 
-  console.log(`🔍 옥션 탭 발견 (ID: ${tab.id}, 제목: ${tab.title})`);
+  console.log(`✅ 선택된 옥션 탭: ID=${tab.id}, active=${tab.active}, title=${tab.title}`);
+  console.log(`📤 검색 요청 전송: ${payload.filters.keyword}`);
 
-  try {
-    // ISOLATED world 사용 (더 안전)
-    const execution = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: 'ISOLATED', // MAIN 대신 ISOLATED 사용
-      args: [SEARCH_URL, payload],
-      func: async (url, body) => {
-        try {
-          console.log('🔍 옥션 검색 요청 시작:', body);
-          const response = await fetch(url, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-          });
-          
-          const text = await response.text();
-          console.log('📦 옥션 API 응답:', response.status, text.slice(0, 200));
-          
-          if (!response.ok) {
-            throw new Error(`경매장 검색 실패 (${response.status}): ${text.slice(0, 200)}`);
-          }
-          
-          return JSON.parse(text);
-        } catch (err) {
-          console.error('❌ 옥션 검색 에러:', err);
-          throw err;
-        }
-      },
+  // executeScript 대신 메시지 전송 (content script가 처리)
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tab.id, {
+      source: 'maple-item-recommend',
+      type: 'AUCTION_SEARCH',
+      payload,
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error(`❌ 메시지 전송 실패 (${payload.filters.keyword}):`, chrome.runtime.lastError);
+        reject(new Error(`옥션 탭 통신 실패: ${chrome.runtime.lastError.message}`));
+        return;
+      }
+
+      if (!response) {
+        console.error(`❌ 응답 없음 (${payload.filters.keyword})`);
+        reject(new Error('옥션 탭에서 응답이 없습니다. 페이지를 새로고침해주세요.'));
+        return;
+      }
+
+      if (!response.ok) {
+        console.error(`❌ 검색 실패 (${payload.filters.keyword}):`, response.error);
+        reject(new Error(response.error));
+        return;
+      }
+
+      console.log(`✅ 검색 성공: ${payload.filters.keyword}`, response.data ? `${response.data.total || 0}개 아이템` : 'data 없음');
+      resolve(response.data);
     });
-
-    return execution[0]?.result;
-  } catch (err) {
-    console.error('❌ executeScript 실패:', err);
-    throw new Error(`스크립트 실행 실패: ${err.message}`);
-  }
+  });
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
