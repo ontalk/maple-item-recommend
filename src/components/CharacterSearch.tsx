@@ -3,15 +3,19 @@
 import { useState, FormEvent } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 
-export default function CharacterSearch({ onSearch }: { onSearch: (name: string) => void }) {
+export default function CharacterSearch({ onSearch }: { onSearch: (name: string) => Promise<void> | void }) {
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!isLoading) {
       setIsLoading(true);
-      onSearch(name.trim());
+      try {
+        await onSearch(name.trim());
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -24,7 +28,7 @@ export default function CharacterSearch({ onSearch }: { onSearch: (name: string)
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="캐릭터 닉네임을 입력하세요"
-          className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 transition-all duration-200 bg-white"
+          className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 transition-all duration-200 bg-white"
           disabled={isLoading}
         />
         <button

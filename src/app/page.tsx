@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Shield, TrendingUp, Coins, ShoppingCart } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import CharacterSearch from '@/components/CharacterSearch';
 import RecommendationResult from '@/components/RecommendationResult';
 import { AuctionSearch } from '@/components/AuctionSearch';
@@ -16,13 +16,10 @@ export default function Home() {
     isLoading: false,
     error: null,
   });
-  const [lastSearchedName, setLastSearchedName] = useState('');
-  const [targetPower, setTargetPower] = useState('2');
+  const targetPower = '2';
 
   const handleSearch = async (name: string, target = targetPower) => {
     setSearchData({ data: null, isLoading: true, error: null });
-    setLastSearchedName(name);
-    
     try {
       const response = await fetch(`/api/character?name=${encodeURIComponent(name)}&target=${encodeURIComponent(target)}`);
       const result = await response.json();
@@ -45,49 +42,12 @@ export default function Home() {
     setSearchData({ data: null, isLoading: false, error: null });
   };
 
-  const handleTargetApply = (nextTarget: string) => {
-    setTargetPower(nextTarget);
-    handleSearch(lastSearchedName, nextTarget);
-  };
-
   return (
     <main className="min-h-screen bg-gray-50">
       {/* 히어로 섹션 */}
       <section className="relative bg-gradient-to-b from-maple-orange/10 via-white to-white py-16 md:py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-maple-orange/10 text-maple-orange rounded-full text-sm font-medium mb-6">
-              <Sparkles className="w-4 h-4" />
-              메이플스토리 장비 강화 추천 시스템
-            </div>
-            
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
-              최소 비용으로 <span className="text-maple-orange">최대 전투력</span> 상승
-            </h1>
-            
-            <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
-              캐릭터 닉네임을 입력하면 현재 장비를 분석하고, 비워두면 옥션 템셋 검색부터 시작할 수 있습니다.
-            </p>
-
-            {/* 특징 카드들 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-              <FeatureCard 
-                icon={Shield} 
-                title="실시간 데이터" 
-                desc="넥슨 공식 API로 현재 장비 상태 정확히 조회" 
-              />
-              <FeatureCard 
-                icon={TrendingUp} 
-                title="효율성 분석" 
-                desc="비용 대비 스탯 상승 효율로 최적 경로 추천" 
-              />
-              <FeatureCard 
-                icon={Coins} 
-                title="비용 계산" 
-                desc="스타포스/잠재/에디셔널/교체 모두 메소 단위 계산" 
-              />
-            </div>
-
             {/* 검색 폼 */}
             <CharacterSearch onSearch={handleSearch} />
           </div>
@@ -106,7 +66,6 @@ export default function Home() {
             error={searchData.error}
             onNewSearch={handleNewSearch}
             targetPower={targetPower}
-            onTargetApply={handleTargetApply}
           />
         </div>
       </section>
@@ -165,17 +124,5 @@ export default function Home() {
         </div>
       </footer>
     </main>
-  );
-}
-
-function FeatureCard({ icon: Icon, title, desc }: { icon: any; title: string; desc: string }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 text-center hover:shadow-lg transition-shadow duration-200">
-      <div className="w-12 h-12 bg-maple-orange/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-        <Icon className="w-6 h-6 text-maple-orange" />
-      </div>
-      <h4 className="font-semibold text-gray-800 mb-2">{title}</h4>
-      <p className="text-sm text-gray-600">{desc}</p>
-    </div>
   );
 }

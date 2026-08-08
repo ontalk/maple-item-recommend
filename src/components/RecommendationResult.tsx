@@ -8,7 +8,6 @@ interface RecommendationResultProps {
   error?: string | null;
   onNewSearch?: () => void;
   targetPower: string;
-  onTargetApply: (target: string) => void;
 }
 
 const SLOT_LAYOUT = [
@@ -36,9 +35,8 @@ function formatCombatPower(value: string | number): string {
   return result.trim();
 }
 
-export default function RecommendationResult({ data, error, onNewSearch, targetPower, onTargetApply }: RecommendationResultProps) {
+export default function RecommendationResult({ data, error, onNewSearch, targetPower }: RecommendationResultProps) {
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [draftTargetPower, setDraftTargetPower] = useState(targetPower);
 
   const getItemBySlot = (slotName: string) => {
     if (!slotName || !data?.recommendations) return null;
@@ -98,21 +96,6 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
           </div>
         </div>
 
-        {/* 목표 전투력 입력창 */}
-        <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
-          <span className="text-sm font-medium text-gray-600">🎯 목표 전투력</span>
-          <input
-            type="number"
-            placeholder="2"
-            value={draftTargetPower}
-            onChange={(e) => setDraftTargetPower(e.target.value)}
-            className="w-20 px-2 py-1 text-sm bg-white border border-gray-300 rounded-lg text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
-          />
-          <span className="text-sm font-bold text-gray-700">억</span>
-          <button onClick={() => onTargetApply(draftTargetPower)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-3.5 py-1.5 rounded-lg transition-colors shadow-sm">
-            적용
-          </button>
-        </div>
       </div>
 
       {/* 2. 메이플스토리 인게임 장비창 그리드 */}
