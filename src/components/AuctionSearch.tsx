@@ -50,6 +50,12 @@ function parseMesos(value: unknown): number {
     + Number(unit[5] || 0);
 }
 
+// 현재 메이플 옥션 응답의 price/pricePerItem은 화면에 표시되는 메소의
+// 10배 단위로 전달된다. 예: 5,499,999,999,999 → 549,999,999,999메소.
+function parseAuctionPrice(value: unknown): number {
+  return parseMesos(value) / 10;
+}
+
 function toOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const parsed = Number(value);
@@ -153,7 +159,7 @@ function isRateLimitedError(error: unknown): boolean {
 }
 
 function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, ignoreStarforce = false): boolean {
-  const price = parseMesos(item.pricePerItem || item.price);
+  const price = parseAuctionPrice(item.pricePerItem || item.price);
   const tooltip = item.toolTip;
   // enhancementOption은 옥션 API에 이미 전달된다. 응답 툴팁에 등급 필드가
   // 생략된 경우에는 '0등급'으로 간주하면 정상 매물까지 전부 탈락하므로,
@@ -468,7 +474,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             setProgress(`${equipment.name} 조건 매칭 완료 (${filteredItems.length}/${allItems.length}개 매물) · 분석 중...`);
 
             const prices = filteredItems
-              .map((item) => parseMesos(item.pricePerItem || item.price))
+              .map((item) => parseAuctionPrice(item.pricePerItem || item.price))
               .filter((price) => price > 0);
             
             const attackPowers = filteredItems
@@ -480,10 +486,14 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             const valueListing = filteredItems
               .map((item) => ({
                 item,
-                price: parseMesos(item.pricePerItem || item.price),
+                price: parseAuctionPrice(item.pricePerItem || item.price),
                 power: Number(item.attackPowerDiff || 0),
               }))
               .filter((listing) => listing.price > 0)
+              // 최적화 대표 매물도 입력 예산 안에서 선택해야 한다.
+              // 기존에는 효율이 높은 고가 매물이 대표로 잡혀, 같은 검색 결과에
+              // 예산 내 최저가 매물이 있어도 전체 부위가 탈락했다.
+              .filter((listing) => listing.price <= budget)
               .sort((left, right) => {
                 const leftEfficiency = left.power > 0 ? left.power / left.price : 0;
                 const rightEfficiency = right.power > 0 ? right.power / right.price : 0;
