@@ -79,6 +79,17 @@ export const BLACK_SET: Record<string, EquipmentOption[]> = {
   ],
 };
 
+// ===== 엠블렘 =====
+export const EMBLEM_SET: Record<string, EquipmentOption[]> = {
+  엠블렘: [
+    { name: '미트라의 분노 : 나이트', set: '칠흑', minLevel: 200, estimatedCost: 3000000000 },
+    { name: '미트라의 분노 : 메이지', set: '칠흑', minLevel: 200, estimatedCost: 3000000000 },
+    { name: '미트라의 분노 : 아처', set: '칠흑', minLevel: 200, estimatedCost: 3000000000 },
+    { name: '미트라의 분노 : 시프', set: '칠흑', minLevel: 200, estimatedCost: 3000000000 },
+    { name: '미트라의 분노 : 해적', set: '칠흑', minLevel: 200, estimatedCost: 3000000000 },
+  ],
+};
+
 // ===== 앱솔랩스 세트 (직업별) =====
 const ABSOLABS_JOB_SUFFIXES = {
   전사: '나이트',
@@ -270,6 +281,10 @@ export function getAllEquipmentOptions(part: string): EquipmentOption[] {
   // 칠흑 세트
   if (BLACK_SET[normalizedPart]) {
     options.push(...BLACK_SET[normalizedPart]);
+  }
+
+  if (EMBLEM_SET[normalizedPart]) {
+    options.push(...EMBLEM_SET[normalizedPart]);
   }
 
   // 앱솔랩스 세트

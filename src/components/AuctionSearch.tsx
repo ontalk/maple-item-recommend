@@ -133,7 +133,7 @@ function optimizeEquipmentSet(
   };
 }
 
-const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식'];
+const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
@@ -194,7 +194,11 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     }
 
     // 선택된 아이템이 있는 부위만 검색
-    const partsToSearch = SEARCH_PARTS;
+    // 선택된 장비가 실제로 속한 부위만 순회한다.
+    // 예: 고통의 근원 → 펜던트, 미트라의 분노 → 엠블렘
+    const partsToSearch = SEARCH_PARTS.filter((part) =>
+      getAllEquipmentOptions(part).some((equipment) => selectedEquipmentNames.has(equipment.name))
+    );
     const allOptimalSets: OptimalSet[] = [];
     const candidatesByPart: Record<string, EquipmentSearchResult[]> = {};
     const budget = Math.max(0, toNumber(budgetEok)) * 100000000;
@@ -228,7 +232,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         // 각 부위의 모든 장비 옵션 검색
         for (const equipment of equipmentOptions) {
           // 직업별 장비 필터링 (방어구/무기만)
-          const isArmorOrWeapon = ['모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '무기'].includes(part);
+          const isArmorOrWeapon = ['모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '무기', '엠블렘'].includes(part);
           const jobSuffixes = ['나이트', '메이지', '아처', '시프', '파이렛'];
           
           // 방어구/무기는 직업에 맞는 것만 검색
