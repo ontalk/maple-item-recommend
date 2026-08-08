@@ -884,7 +884,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                   </div>
 
                   {optimalSet.selected.topItem && <AuctionTooltipDetails item={optimalSet.selected.topItem} />}
-                  {optimalSet.selected.topItem?.toolTip && false && (
+                  {optimalSet.selected.topItem?.toolTip && (false ? (
                     <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3 text-xs text-gray-700">
                       <p className="mb-2 font-bold text-gray-900">🔍 추천 매물 상세</p>
                       <div className="grid gap-1 sm:grid-cols-2">
@@ -911,7 +911,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                         </p>
                       </div>
                     </div>
-                  )}
+                  ) : null)}
                 </div>
 
                 {/* 대안 장비들 */}
