@@ -207,7 +207,10 @@ const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
 };
 
 function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?: string): boolean {
-  if (equipment.job) return equipment.job === exactJob;
+  // 보조무기/엠블렘은 장비명 접미사가 아니라 직업별 고유 이름으로 관리한다.
+  // 목록에서 숨기면 사용자가 원하는 직업의 보조무기를 직접 선택할 수 없으므로
+  // 직업 필터와 관계없이 표시하고, 실제 검색 여부는 체크박스 선택으로 결정한다.
+  if (equipment.job) return true;
   const jobSuffixes = Object.values(JOB_SUFFIX_BY_CLASS);
   const isJobSpecific = jobSuffixes.some((suffix) => equipment.name.includes(suffix));
   return !isJobSpecific || equipment.name.includes(JOB_SUFFIX_BY_CLASS[jobClass] || '');
@@ -237,7 +240,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
   const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
-    () => new Set(ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, '파이렛', characterClass || '해적')).map((equipment) => equipment.name))
+    () => new Set(ALL_SEARCHABLE_EQUIPMENT
+      .filter((equipment) => !equipment.job && isVisibleForJob(equipment, '파이렛', characterClass || '해적'))
+      .map((equipment) => equipment.name))
   );
   const visibleEquipment = ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, jobClass, characterClass));
 
