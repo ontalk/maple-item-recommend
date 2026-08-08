@@ -195,6 +195,19 @@ function optimizeEquipmentSet(
 
 const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
+const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
+  전사: '파이터',
+  마법사: '메이지',
+  궁수: '아처',
+  도적: '시프',
+  해적: '파이렛',
+};
+
+function isVisibleForJob(equipment: EquipmentOption, jobClass: string): boolean {
+  const jobSuffixes = Object.values(JOB_SUFFIX_BY_CLASS);
+  const isJobSpecific = jobSuffixes.some((suffix) => equipment.name.includes(suffix));
+  return !isJobSpecific || equipment.name.includes(JOB_SUFFIX_BY_CLASS[jobClass] || '');
+}
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
   const searchLockRef = useRef(false);
@@ -220,8 +233,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
   const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
-    () => new Set(ALL_SEARCHABLE_EQUIPMENT.map((equipment) => equipment.name))
+    () => new Set(ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, '해적')).map((equipment) => equipment.name))
   );
+  const visibleEquipment = ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, jobClass));
 
   const setNumber = (key: keyof AuctionProfile, value: string) => {
     setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
@@ -572,7 +586,15 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
             <span className="text-xs font-semibold text-gray-600 mb-1 block">직업</span>
             <select
               value={jobClass}
-              onChange={(e) => setJobClass(e.target.value)}
+              onChange={(e) => {
+                const nextJob = e.target.value;
+                setJobClass(nextJob);
+                setSelectedEquipmentNames((current) => new Set(
+                  ALL_SEARCHABLE_EQUIPMENT
+                    .filter((equipment) => isVisibleForJob(equipment, nextJob) && current.has(equipment.name))
+                    .map((equipment) => equipment.name)
+                ));
+              }}
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition bg-white"
               disabled={isSearching}
             >
@@ -699,7 +721,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setSelectedEquipmentNames(new Set(ALL_SEARCHABLE_EQUIPMENT.map((equipment) => equipment.name)))}
+                onClick={() => setSelectedEquipmentNames(new Set(visibleEquipment.map((equipment) => equipment.name)))}
                 disabled={isSearching}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
               >
@@ -717,7 +739,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           </div>
 
           <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-            {ALL_SEARCHABLE_EQUIPMENT.map((equipment) => {
+            {visibleEquipment.map((equipment) => {
               const isSelected = selectedEquipmentNames.has(equipment.name);
               return (
                 <label
