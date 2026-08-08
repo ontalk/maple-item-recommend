@@ -274,6 +274,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                 keyword: equipment.name,
                 page: currentPage,
                 limit: 20,
+                exactMatch: true,
                 minPrice: toNumber(auctionFilters.minPrice),
                 maxPrice: toNumber(auctionFilters.maxPrice),
                 minStarforce: toNumber(auctionFilters.minStarforce),

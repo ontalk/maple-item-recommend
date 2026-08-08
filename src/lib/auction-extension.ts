@@ -8,6 +8,7 @@ export interface AuctionSearchFilters {
   keyword: string;
   page?: number;
   limit?: number;
+  exactMatch?: boolean;
   minPrice?: number;
   maxPrice?: number;
   minStarforce?: number;
