@@ -670,7 +670,14 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                 {/* 선택된 장비 */}
                 <div className="p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300 mb-3">
                   <div className="flex items-center justify-between mb-2">
-                    <div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {optimalSet.selected.topItem?.itemIcon?.fallBackUrl && (
+                        <img
+                          src={optimalSet.selected.topItem.itemIcon.fallBackUrl}
+                          alt=""
+                          className="h-12 w-12 rounded-lg border border-emerald-200 bg-white object-contain"
+                        />
+                      )}
                       <p className="text-sm font-bold text-gray-900">{optimalSet.selected.equipment.name}</p>
                       <p className="text-xs text-gray-500">{optimalSet.selected.equipment.set} 세트</p>
                     </div>
@@ -691,6 +698,35 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                       <p className="text-sm font-bold text-emerald-600">{optimalSet.selected.efficiency.toFixed(2)}</p>
                     </div>
                   </div>
+
+                  {optimalSet.selected.topItem?.toolTip && (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3 text-xs text-gray-700">
+                      <p className="mb-2 font-bold text-gray-900">🔍 추천 매물 상세</p>
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        <p>
+                          ⭐ 스타포스:{' '}
+                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.starForce?.description ||
+                            `${optimalSet.selected.topItem.toolTip.starforce || optimalSet.selected.topItem.starforce || 0}성`}
+                        </p>
+                        <p>
+                          📜 주문서:{' '}
+                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.scroll?.description || '정보 없음'}
+                        </p>
+                        <p>
+                          🔥 추가옵션:{' '}
+                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.exOption?.description || '정보 없음'}
+                        </p>
+                        <p>
+                          🟨 잠재능력:{' '}
+                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.potential?.description || '없음'}
+                        </p>
+                        <p className="sm:col-span-2">
+                          🟦 에디셔널:{' '}
+                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.additionalPotential?.description || '없음'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 대안 장비들 */}

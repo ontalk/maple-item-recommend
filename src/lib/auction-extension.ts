@@ -34,7 +34,19 @@ export interface AuctionRawItem {
   starforce: number;
   attackPowerDiff?: number;
   itemIcon?: { fallBackUrl?: string };
-  toolTip?: { upgradeInfo?: { potential?: { description?: string }; additionalPotential?: { description?: string } } };
+  toolTip?: {
+    starforce?: number;
+    stat?: Record<string, number>;
+    categories?: string[];
+    setEffects?: string[];
+    upgradeInfo?: {
+      starForce?: { current?: number; max?: number; description?: string };
+      scroll?: { description?: string };
+      exOption?: { description?: string };
+      potential?: { grade?: number; description?: string };
+      additionalPotential?: { grade?: number; description?: string };
+    };
+  };
 }
 
 export interface AuctionSearchResult {
