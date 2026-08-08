@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import type { BenchmarkItem } from '@/types';
 
 interface RecommendationResultProps {
   data: any;
@@ -60,29 +59,6 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
     });
   };
 
-  // 모든 추천 항목을 모아서 '가성비/효율 순'으로 스펙업 순서 타임라인 생성
-  const getAllTimelineRecommendations = () => {
-    if (!data?.recommendations) return [];
-    const allRecs: Array<{ part: string; action: string; cost: number; desc: string; icon?: string }> = [];
-
-    data.recommendations.forEach((rec: any) => {
-      rec.recommendations?.forEach((opt: any) => {
-        allRecs.push({
-          part: rec.equipment_part,
-          action: opt.action,
-          cost: opt.estimated_cost,
-          desc: opt.description,
-          icon: rec.current_item?.item_icon,
-        });
-      });
-    });
-
-    // 비용 대비 효율순 정렬 (임의로 비용 낮은 순 혹은 효율순)
-    return allRecs.sort((a, b) => a.cost - b.cost);
-  };
-
-  const timelineSteps = getAllTimelineRecommendations();
-
   if (error) {
     return (
       <div className="max-w-xl mx-auto p-6 bg-red-50 border border-red-200 rounded-2xl text-center">
@@ -138,42 +114,6 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
           </button>
         </div>
       </div>
-
-      {data?.benchmark && (
-        <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-xs font-bold text-amber-600">비교 기준 · {data.benchmark.range_label}</p>
-              <h2 className="mt-1 text-lg font-bold text-gray-900">최소 템세팅과 여명/칠흑 비교</h2>
-              <p className="mt-1 text-xs text-gray-500 max-w-3xl">{data.benchmark.source_label}</p>
-            </div>
-            <span className="w-fit rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">권장: {data.benchmark.recommended_track}</span>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-              <p className="text-xs font-bold text-amber-800">현재 여명 장비</p>
-              <p className="mt-1 text-sm text-gray-700">{data.benchmark.dawn_items_equipped.length ? data.benchmark.dawn_items_equipped.join(' · ') : '감지된 여명 장비가 없습니다.'}</p>
-              <p className="mt-2 text-xs text-gray-500">2억 목표에서는 세트 효과를 유지한 뒤, 예산과 해방·보스 진행도에 맞춰 칠흑으로 한 부위씩 바꾸는 흐름을 제시합니다.</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-700">현재 칠흑 장비</p>
-              <p className="mt-1 text-sm text-gray-700">{data.benchmark.black_items_equipped.length ? data.benchmark.black_items_equipped.join(' · ') : '감지된 칠흑 장비가 없습니다.'}</p>
-              <p className="mt-2 text-xs text-gray-500">칠흑은 획득·작·거래 비용 편차가 커서, 최소 목표를 이미 충족한 뒤에 비교 대상으로 잡습니다.</p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {data.benchmark.minimum_plan.slice(0, 8).map((plan: BenchmarkItem) => (
-              <div key={`${plan.equipment_part}-${plan.target_item}`} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <p className="text-[11px] font-bold text-gray-500">{plan.equipment_part} · {plan.track}</p>
-                <p className="mt-1 text-sm font-bold text-gray-800">{plan.target_item}</p>
-                <p className="mt-1 text-[11px] text-gray-500">★{plan.target_starforce} / {plan.target_potential}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* 2. 메이플스토리 인게임 장비창 그리드 */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -236,54 +176,7 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
         </div>
       </div>
 
-      {/* 3. 하단 스펙업 순서 타임라인 (요청하신 사진 스타일 반영) */}
-      <div className="bg-gray-900 rounded-2xl p-6 shadow-lg text-white">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-base font-bold flex items-center gap-2">
-            🚀 스펙업 순서 추천 <span className="text-xs text-amber-400 font-normal">— 가성비 효율순 최적 루트</span>
-          </h3>
-          <span className="text-xs bg-gray-800 text-gray-300 px-3 py-1 rounded-full border border-gray-700">
-            목표: {targetPower}억 달성
-          </span>
-        </div>
-
-        <div className="overflow-x-auto pb-2">
-          <div className="flex items-center gap-3 min-w-max">
-            {timelineSteps.length > 0 ? (
-              timelineSteps.map((step, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 w-44 flex flex-col justify-between shadow-md relative hover:border-amber-500 transition-colors">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[11px] font-bold text-amber-400">{step.part}</span>
-                      <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold">
-                        순서 {idx + 1}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 my-1">
-                      {step.icon ? (
-                        <img src={step.icon} alt="" className="w-10 h-10 object-contain bg-gray-900 rounded-lg p-1 border border-gray-700" />
-                      ) : (
-                        <div className="w-10 h-10 bg-gray-700 rounded-lg" />
-                      )}
-                      <div className="overflow-hidden">
-                        <p className="text-xs font-bold truncate text-gray-100">{step.action}</p>
-                        <p className="text-[10px] text-gray-400 truncate">{step.desc}</p>
-                      </div>
-                    </div>
-                  </div>
-                  {idx < timelineSteps.length - 1 && (
-                    <div className="text-gray-600 font-bold">➔</div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-gray-400 py-4">추천 스펙업 경로가 없습니다. 장비를 확인해주세요.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 4. 클릭 시 뜨는 상세 모달 팝업 */}
+      {/* 3. 클릭 시 뜨는 상세 모달 팝업 */}
       {selectedItem && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
