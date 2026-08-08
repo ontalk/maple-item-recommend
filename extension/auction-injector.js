@@ -30,11 +30,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 응답 대기
   const requestId = crypto.randomUUID();
+  let responded = false;
+  let timeoutId;
   
   const handleResponse = (event) => {
-    if (event.detail?.requestId !== requestId) return;
+    if (responded || event.detail?.requestId !== requestId) return;
     
     console.log('✅ 페이지로부터 응답 수신:', event.detail);
+    responded = true;
+    clearTimeout(timeoutId);
     window.removeEventListener('maple-auction-response', handleResponse);
     sendResponse(event.detail.result);
   };
@@ -42,7 +46,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   window.addEventListener('maple-auction-response', handleResponse);
   
   // 타임아웃 설정
-  setTimeout(() => {
+  timeoutId = setTimeout(() => {
+    if (responded) return;
+    responded = true;
     window.removeEventListener('maple-auction-response', handleResponse);
     sendResponse({ ok: false, error: '옥션 검색 시간 초과' });
   }, 30000);

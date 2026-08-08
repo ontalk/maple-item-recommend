@@ -41,6 +41,11 @@ function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
+function isFatalAuctionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /426|6013|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch/i.test(message);
+}
+
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 108912176,
@@ -204,6 +209,11 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               topItem: allItems[0],
             });
           } catch (err) {
+            // 로그인 세션이 끊긴 뒤에는 다음 아이템 검색도 모두 실패하므로
+            // 추가 요청을 보내지 않고 전체 검색을 즉시 중단한다.
+            if (isFatalAuctionError(err)) {
+              throw new Error('메이플 옥션 세션이 끊겼습니다. 옥션 탭에서 다시 로그인하고 검색을 재시작해주세요.');
+            }
             console.error(`${equipment.name} 검색 실패:`, err);
           }
         }
