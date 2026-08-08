@@ -72,6 +72,10 @@
       // 현재 공식 옥션 요청의 기본 Payload와 동일하게 검색어만 전송한다.
       const requestFilters = {
         keyword: payload.filters?.keyword || '',
+        ...(payload.filters?.itemCategory ? { itemCategory: payload.filters.itemCategory } : {}),
+        ...(payload.filters?.enhancementOption ? { enhancementOption: payload.filters.enhancementOption } : {}),
+        ...(Number(payload.filters?.minPrice) > 0 ? { priceMin: Number(payload.filters.minPrice) } : {}),
+        ...(Number(payload.filters?.maxPrice) > 0 ? { priceMax: Number(payload.filters.maxPrice) } : {}),
       };
       const sessionKey = searchSessionKey(payload);
 

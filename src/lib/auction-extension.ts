@@ -8,6 +8,11 @@ export interface AuctionSearchFilters {
   keyword: string;
   page?: number;
   limit?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  minStarforce?: number;
+  minPotentialGrade?: number;
+  minAdditionalPotentialGrade?: number;
   itemCategory?: { itemDetailCategory: 'ARMOR' };
   enhancementOption?: {
     starforceMin?: number;

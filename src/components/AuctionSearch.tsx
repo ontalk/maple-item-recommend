@@ -274,12 +274,16 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                 keyword: equipment.name,
                 page: currentPage,
                 limit: 20,
+                minPrice: toNumber(auctionFilters.minPrice),
+                maxPrice: toNumber(auctionFilters.maxPrice),
+                minStarforce: toNumber(auctionFilters.minStarforce),
+                minPotentialGrade: toNumber(auctionFilters.minPotentialGrade),
+                minAdditionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade),
                 itemCategory: { itemDetailCategory: 'ARMOR' },
                 enhancementOption: {
-                  starforceMin: 17,
-                  starforceMax: 17,
-                  potentialGrade: 3, // 유니크
-                  additionalPotentialGrade: 2, // 에픽
+                  starforceMin: toNumber(auctionFilters.minStarforce) || undefined,
+                  potentialGrade: toNumber(auctionFilters.minPotentialGrade) || undefined,
+                  additionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined,
                 },
               });
 
