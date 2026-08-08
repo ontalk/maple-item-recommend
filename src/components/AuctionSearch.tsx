@@ -1050,33 +1050,6 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                   ) : null)}
                 </div>
 
-                {/* 대안 장비들 */}
-                {optimalSet.alternatives.length > 0 && (
-                  <details open className="group">
-                    <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-900 font-semibold">
-                      다른 옵션 {optimalSet.alternatives.length}개 (접기)
-                    </summary>
-                    <div className="mt-2 space-y-2">
-                      {optimalSet.alternatives.map((alt, idx) => (
-                        <div key={idx} className="p-3 rounded-lg bg-gray-50 border border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-gray-800">{alt.equipment.name}</p>
-                              <p className="text-xs text-gray-500">{alt.equipment.part ?? alt.equipment.set} · 효율 {alt.efficiency.toFixed(2)}</p>
-                            </div>
-                            <div className="text-right">
-                      <p className="text-sm font-bold text-gray-700">{formatMesos(alt.recommendedPrice)}</p>
-                      <p className="text-xs text-gray-500">+{alt.recommendedPower.toLocaleString()}</p>
-                            </div>
-                          </div>
-                          {(optimalSet.part.startsWith('반지') || optimalSet.part.startsWith('펜던트')) && alt.topItem && (
-                            <AuctionTooltipDetails item={alt.topItem} />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
               </div>
             ))}
           </div>
