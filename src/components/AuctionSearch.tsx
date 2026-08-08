@@ -438,6 +438,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               throw new Error('옥션 요청이 너무 많아 검색을 중단했습니다(429). 1~2분 기다린 뒤 다시 시작해주세요.');
             }
             if (isFatalAuctionError(err)) {
+              console.error('🧩 세션 오류 원본:', err instanceof Error ? err.message : String(err));
               throw new Error('메이플 옥션 세션이 끊겼습니다. 옥션 탭에서 다시 로그인하고 검색을 재시작해주세요.');
             }
             console.error(`${equipment.name} 검색 실패:`, err);
