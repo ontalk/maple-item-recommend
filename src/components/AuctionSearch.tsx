@@ -52,7 +52,7 @@ interface OptimizationState {
 
 function isFatalAuctionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /426|6013|429|요청이 너무 많습니다|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch/i.test(message);
+  return /426|6013|429|요청이 너무 많습니다|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch|Chrome Extension이 설치되지 않았습니다|브리지가 활성화되지 않았습니다|응답 시간 초과|확장 프로그램에 연결/i.test(message);
 }
 
 function isRateLimitedError(error: unknown): boolean {

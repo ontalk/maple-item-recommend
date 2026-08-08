@@ -10,7 +10,8 @@
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
     "https://maple-item-recommend.vercel.app/*",
-    "https://maple-item-recommend-k42wcv75y-ontalk0308.vercel.app/*"
+    "https://maple-item-recommend-k42wcv75y-ontalk0308.vercel.app/*",
+    "https://maple-item-recommend-nsex02az-ontalk0308.vercel.app/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -28,6 +29,7 @@
       "matches": [
         "https://maple-item-recommend.vercel.app/*",
         "https://maple-item-recommend-k42wcv75y-ontalk0308.vercel.app/*",
+        "https://maple-item-recommend-nsex02az-ontalk0308.vercel.app/*",
         "http://localhost:3000/*",
         "http://127.0.0.1:3000/*"
       ],
