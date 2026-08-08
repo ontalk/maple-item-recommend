@@ -206,6 +206,10 @@ const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
   파이렛: '파이렛',
 };
 
+const AUCTION_SUB_WEAPON_CATEGORY_BY_NAME: Record<string, string> = {
+  '봄버드 센터파이어': 'WEAPON_SUB_CANNON_GUN_POWDER',
+};
+
 function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?: string): boolean {
   // 보조무기/엠블렘은 장비명 접미사가 아니라 직업별 고유 이름으로 관리한다.
   // 목록에서 숨기면 사용자가 원하는 직업의 보조무기를 직접 선택할 수 없으므로
@@ -357,7 +361,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             
             console.log(`  🔍 ${equipment.name} 검색 시작...`);
             const ignoreStarforce = part === '보조무기' && equipment.name !== '아케인셰이드 블레이드';
-            const itemDetailCategory = part === '보조무기' ? 'WEAPON' : 'ARMOR';
+            const itemDetailCategory = part === '보조무기'
+              ? (AUCTION_SUB_WEAPON_CATEGORY_BY_NAME[equipment.name] || 'WEAPON')
+              : 'ARMOR';
             
             // 첫 페이지 검색
             let allItems: AuctionRawItem[] = [];
@@ -377,9 +383,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade),
-                itemCategory: itemDetailCategory === 'WEAPON'
-                  ? { itemDetailCategory: 'WEAPON', itemSubCategory: 'SUB_WEAPON' }
-                  : { itemDetailCategory: 'ARMOR' },
+                itemCategory: { itemDetailCategory },
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
                   starforceMax: ignoreStarforce ? undefined : (toNumber(auctionFilters.maxStarforce) || undefined),
