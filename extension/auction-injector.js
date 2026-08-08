@@ -51,7 +51,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     responded = true;
     window.removeEventListener('maple-auction-response', handleResponse);
     sendResponse({ ok: false, error: '옥션 검색 시간 초과' });
-  }, 30000);
+  }, 120000);
   
   // 페이지로 요청 전달
   window.dispatchEvent(new CustomEvent('maple-auction-request', {

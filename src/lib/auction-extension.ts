@@ -65,7 +65,7 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
       messageHandled = true;
       cleanup();
       reject(new Error('경매장 확장 프로그램 응답 시간 초과 (30초). Extension 설치 및 옥션 로그인 상태를 확인해주세요.'));
-    }, 30000);
+    }, 120000);
 
     const onRuntimeMessage = (response?: AuctionExtensionResponse) => {
       if (messageHandled) return;

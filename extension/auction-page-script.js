@@ -12,6 +12,10 @@
     return deviceId;
   }
 
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   console.log('🎯 Maple Auction Page Script 활성화됨 (페이지 컨텍스트)');
 
   // Content Script로부터 요청 수신
@@ -49,9 +53,23 @@
 
       // 공식 옥션 웹 요청과 동일하게 검색어/카테고리만 전송한다.
       // 별·잠재 필터는 검색 결과를 받은 뒤 추천 로직에서 처리한다.
-      let response = await makeRequest(requestFilters);
-      
-      let text = await response.text();
+      let response;
+      let text;
+      const maxRateLimitRetries = 3;
+
+      for (let attempt = 0; attempt <= maxRateLimitRetries; attempt += 1) {
+        response = await makeRequest(requestFilters);
+        text = await response.text();
+
+        if (response.status !== 429 || attempt === maxRateLimitRetries) break;
+
+        const retryAfter = Number(response.headers.get('retry-after'));
+        const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : 15000 * (attempt + 1);
+        console.warn(`⏳ 요청 제한(429). ${Math.ceil(waitMs / 1000)}초 후 같은 페이지를 재시도합니다. (${attempt + 1}/${maxRateLimitRetries})`);
+        await delay(waitMs);
+      }
 
       console.log(`📦 옥션 API 응답: ${response.status} (${payload.filters.keyword})`);
       
