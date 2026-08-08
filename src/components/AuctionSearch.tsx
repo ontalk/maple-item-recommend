@@ -178,6 +178,8 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                   additionalPotentialGrade: 2, // 에픽
                 },
               });
+
+              setProgress(`${equipment.name} 검색 중... (${currentPage}/${result.data.totalPages || '?'}페이지, 현재 ${allItems.length + result.data.items.length}개 매물 수집)`);
               
               // 첫 페이지만 카운트 소모
               if (currentPage === 1) {
@@ -204,6 +206,8 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               console.log(`  └─ ⚠️ ${equipment.name}: 매물 없음`);
               continue;
             }
+
+            setProgress(`${equipment.name} 전체 페이지 수집 완료 (${allItems.length}개 매물) · 분석 중...`);
 
             const prices = allItems
               .map((item) => toNumber(item.pricePerItem || item.price))
@@ -441,7 +445,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           {isSearching ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              옥션 검색 중... ({optimalSets.length}/12개 부위)
+              옥션 검색 중...
             </>
           ) : (
             <>

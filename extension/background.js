@@ -78,6 +78,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   (async () => {
+    const page = Number(message.payload?.page || 1);
+    const isNewSearch = page === 1;
+
     // 캐시 확인
     const cacheKey = JSON.stringify(message.payload);
     const cached = cache.get(cacheKey);
@@ -87,17 +90,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return { ok: true, data: cached.data, cached: true, remaining: MAX_DAILY_SEARCHES - usage.count };
     }
     
-    // 일일 제한 확인
+    // 공식 옥션은 같은 검색어의 페이지 이동을 검색 횟수로 차감하지 않는다.
+    // 따라서 최초 검색(page 1)만 일일 검색 한도를 확인한다.
     resetUsageIfNeeded();
-    if (usage.count >= MAX_DAILY_SEARCHES) {
+    if (isNewSearch && usage.count >= MAX_DAILY_SEARCHES) {
       throw new Error(`오늘의 안전 검색 한도(${MAX_DAILY_SEARCHES}회)에 도달했습니다.`);
     }
     
     // 검색 실행
     const data = await searchAuction(message.payload);
     
-    // 캐시 저장 및 카운트 증가
-    usage.count += 1;
+    // 페이지별 결과는 각각 캐시하지만, 검색 횟수는 최초 페이지에서만 차감한다.
+    if (isNewSearch) {
+      usage.count += 1;
+    }
     cache.set(cacheKey, { createdAt: Date.now(), data });
     
     return { ok: true, data, cached: false, remaining: MAX_DAILY_SEARCHES - usage.count };
