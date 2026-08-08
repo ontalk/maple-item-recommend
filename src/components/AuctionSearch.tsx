@@ -476,7 +476,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
           allOptimalSets.push({
             part,
             selected: partResults[0], // 가장 효율 좋은 것
-            alternatives: partResults.slice(1, 5), // 대안 4개
+            alternatives: partResults.slice(1), // 검색 조건을 통과한 모든 대안
           });
         }
 
@@ -502,7 +502,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
         return {
           part: EQUIPMENT_SLOT_COUNTS[basePart] ? `${basePart} ${slot}` : basePart,
           selected: { ...selected, part: basePart },
-          alternatives: candidates.filter((candidate) => candidate.equipment.name !== selected.equipment.name).slice(0, 4),
+          alternatives: candidates.filter((candidate) => candidate.equipment.name !== selected.equipment.name),
         };
       });
 
@@ -969,9 +969,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
 
                 {/* 대안 장비들 */}
                 {optimalSet.alternatives.length > 0 && (
-                  <details className="group">
+                  <details open className="group">
                     <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-900 font-semibold">
-                      다른 옵션 {optimalSet.alternatives.length}개 보기
+                      다른 옵션 {optimalSet.alternatives.length}개 (접기)
                     </summary>
                     <div className="mt-2 space-y-2">
                       {optimalSet.alternatives.map((alt, idx) => (
