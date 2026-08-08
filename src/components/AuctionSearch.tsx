@@ -295,12 +295,16 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
   const [remaining, setRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
+  const [equipmentSearchQuery, setEquipmentSearchQuery] = useState('');
   const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
     () => new Set(ALL_SEARCHABLE_EQUIPMENT
       .filter((equipment) => !equipment.job && isVisibleForJob(equipment, '파이렛', characterClass || '해적'))
       .map((equipment) => equipment.name))
   );
   const visibleEquipment = ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, jobClass, characterClass));
+  const filteredEquipment = visibleEquipment.filter((equipment) =>
+    equipment.name.toLocaleLowerCase().includes(equipmentSearchQuery.trim().toLocaleLowerCase())
+  );
 
   const setNumber = (key: keyof AuctionProfile, value: string) => {
     setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
@@ -845,8 +849,23 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             </div>
           </div>
 
+          <div className="relative mb-3">
+            <input
+              type="search"
+              value={equipmentSearchQuery}
+              onChange={(event) => setEquipmentSearchQuery(event.target.value)}
+              placeholder="아이템 이름으로 검색"
+              disabled={isSearching}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20"
+            />
+          </div>
+
+          <div className="mb-2 text-xs text-gray-500">
+            검색 결과 {filteredEquipment.length}개
+          </div>
+
           <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-            {visibleEquipment.map((equipment) => {
+            {filteredEquipment.map((equipment) => {
               const isSelected = selectedEquipmentNames.has(equipment.name);
               return (
                 <label
