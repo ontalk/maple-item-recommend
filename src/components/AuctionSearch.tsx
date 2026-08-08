@@ -36,7 +36,7 @@ function parseMesos(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value !== 'string') return 0;
 
-  const text = value.trim().replace(/,/g, '');
+  const text = value.trim().replace(/,/g, '').replace(/메소$/i, '').trim();
   if (!text) return 0;
   const plain = Number(text);
   if (Number.isFinite(plain)) return plain;
@@ -492,6 +492,15 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             const recommendedPrice = valueListing?.price || lowestPrice;
             const recommendedPower = valueListing?.power || avgAttackPower;
             const efficiency = recommendedPrice && recommendedPower ? (recommendedPower / recommendedPrice) * 1000000000 : 0;
+
+            console.log(`  💰 ${equipment.name} 가격 확인`, {
+              budget,
+              budgetInEok: budget / 100000000,
+              lowestPrice,
+              recommendedPrice,
+              recommendedPriceInEok: recommendedPrice ? recommendedPrice / 100000000 : null,
+              rawPrice: filteredItems[0]?.pricePerItem || filteredItems[0]?.price,
+            });
 
             partResults.push({
               part,
