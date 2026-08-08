@@ -10,6 +10,8 @@
   const DEVICE_ID_KEY = 'maple-auction-device-id';
   const DEVICE_ID_PATTERN = /^[a-f0-9]{32}$/i;
   const LAST_KNOWN_OFFICIAL_DEVICE_ID = 'bd262901bfdd472e87f92054eb1edb85';
+  const SEARCH_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const searchSessions = new Map();
 
   function getDeviceId() {
     // 공식 옥션이 이미 저장해 둔 32자리 디바이스 ID를 우선 사용한다.
@@ -44,6 +46,21 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  function searchSessionKey(payload) {
+    return `${payload.accountId}:${payload.characterId}:${payload.filters?.keyword || ''}`;
+  }
+
+  function findSearchId(value) {
+    if (typeof value === 'string' && SEARCH_ID_PATTERN.test(value)) return value;
+    if (!value || typeof value !== 'object') return null;
+
+    for (const child of Object.values(value)) {
+      const found = findSearchId(child);
+      if (found) return found;
+    }
+    return null;
+  }
+
   console.log('🎯 Maple Auction Page Script 활성화됨 (페이지 컨텍스트)');
 
   // Content Script로부터 요청 수신
@@ -56,6 +73,7 @@
       const requestFilters = {
         keyword: payload.filters?.keyword || '',
       };
+      const sessionKey = searchSessionKey(payload);
 
       const makeRequest = (filters) => {
         const page = Number(payload.page || 1);
@@ -68,6 +86,11 @@
 
         // 공식 옥션은 페이지 2부터 POST 검색이 아니라 GET으로 기존 검색 결과를 넘긴다.
         if (page > 1) {
+          const searchId = payload.searchId || searchSessions.get(sessionKey);
+          if (!searchId) {
+            throw new Error('페이지 검색 세션 ID를 찾지 못했습니다. 1페이지 검색부터 다시 실행해주세요.');
+          }
+
           const query = new URLSearchParams({
             accountId: String(payload.accountId),
             page: String(page),
@@ -75,7 +98,7 @@
             sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
             characterId: String(payload.characterId),
           });
-          return fetch(`${SEARCH_URL}?${query.toString()}`, {
+          return fetch(`${SEARCH_URL.replace('/searches/tool-tip', `/searches/${searchId}/tool-tip`)}?${query.toString()}`, {
             method: 'GET',
             credentials: 'include',
             headers,
@@ -151,6 +174,17 @@
       }
       
       const data = JSON.parse(text);
+      if (Number(payload.page || 1) === 1) {
+        const location = response.headers.get('location') || '';
+        const locationMatch = location.match(SEARCH_ID_PATTERN);
+        const searchId = locationMatch?.[0] || findSearchId(data);
+        if (searchId) {
+          searchSessions.set(sessionKey, searchId);
+          console.log(`🧩 검색 세션 ID 저장: ${searchId}`);
+        } else {
+          console.warn('⚠️ 1페이지 응답에서 검색 세션 ID를 찾지 못했습니다.');
+        }
+      }
       console.log(`✅ 검색 성공: ${data.total || 0}개 아이템 (${payload.filters.keyword})`);
       
       // 응답 전송
