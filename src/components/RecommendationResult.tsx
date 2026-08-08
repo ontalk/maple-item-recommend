@@ -13,12 +13,12 @@ interface RecommendationResultProps {
 }
 
 const SLOT_LAYOUT = [
-  ['반지1', '', '모자', '', '엠블렘'],
-  ['반지2', '', '얼굴장식', '', '뱃지'],
-  ['반지3', '펜던트', '눈장식', '귀고리', '훈장'],
-  ['반지4', '펜던트2', '상의', '어깨장식', '기계 심장'],
-  ['포켓 아이템', '벨트', '하의', '장갑', '예비 특수 반지'],
-  ['무기', '', '신발', '망토', '보조무기']
+  ['반지1', '', '', '모자', '', '', '엠블렘'],
+  ['반지2', '', '', '얼굴장식', '', '', '뱃지'],
+  ['반지3', '펜던트', '', '눈장식', '', '귀고리', '훈장'],
+  ['반지4', '펜던트2', '', '상의', '', '어깨장식', '기계 심장'],
+  ['포켓 아이템', '벨트', '', '하의', '', '장갑', '예비 특수 반지'],
+  ['무기', '', '', '신발', '', '망토', '보조무기']
 ];
 
 function formatCombatPower(value: string | number): string {
@@ -182,11 +182,12 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
         </h2>
         <p className="text-xs text-amber-600 mb-4 font-medium">💡 목표 전투력 {targetPower}억 달성을 위한 최적의 빌드가 계산되어 있습니다.</p>
 
-        <div className="grid grid-cols-5 gap-3">
-          {SLOT_LAYOUT.flatMap((row, rowIndex) =>
-            row.map((slotName, colIndex) => {
+        <div className="overflow-x-auto pb-1">
+          <div className="grid min-w-[760px] grid-cols-7 gap-2">
+            {SLOT_LAYOUT.flatMap((row, rowIndex) =>
+              row.map((slotName, colIndex) => {
               if (!slotName) {
-                return <div key={`${rowIndex}-${colIndex}`} className="h-28 opacity-0 pointer-events-none" />;
+                return <div key={`${rowIndex}-${colIndex}`} className="h-32 opacity-0 pointer-events-none" />;
               }
 
               const itemData = getItemBySlot(slotName);
@@ -197,7 +198,7 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
                 <div
                   key={`${rowIndex}-${colIndex}`}
                   onClick={() => itemData && setSelectedItem(itemData)}
-                  className={`h-28 bg-gray-50 hover:bg-amber-50/40 border rounded-2xl p-2 flex flex-col justify-between items-center cursor-pointer transition-all hover:scale-105 hover:shadow-md relative ${
+                    className={`h-32 bg-gray-50 hover:bg-amber-50/40 border rounded-xl p-1.5 flex flex-col justify-between items-center cursor-pointer transition-all hover:scale-105 hover:shadow-md relative ${
                     selectedItem?.equipment_part === slotName ? 'border-amber-500 ring-2 ring-amber-200 bg-amber-50/30' : 'border-gray-200'
                   }`}
                 >
@@ -228,9 +229,10 @@ export default function RecommendationResult({ data, error, onNewSearch, targetP
                     <span className="text-xs text-gray-300 my-auto">미장착</span>
                   )}
                 </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
