@@ -36,9 +36,23 @@ async function findAuctionTab() {
   return tab;
 }
 
+async function ensureAuctionContentScript(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['auction-injector.js'],
+    });
+    console.log(`✅ 옥션 인젝터 확인/주입 완료: 탭 ${tabId}`);
+  } catch (error) {
+    console.error('❌ 옥션 인젝터 주입 실패:', error);
+    throw new Error('옥션 탭에 확장 프로그램을 연결하지 못했습니다. 옥션 탭을 새로고침해주세요.');
+  }
+}
+
 // 옥션 검색 실행
 async function searchAuction(payload) {
   const tab = await findAuctionTab();
+  await ensureAuctionContentScript(tab.id);
   
   console.log(`📤 검색 요청 전송: ${payload.filters?.keyword} (페이지: ${payload.page || 1})`);
   
