@@ -890,24 +890,24 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                       <div className="grid gap-1 sm:grid-cols-2">
                         <p>
                           ⭐ 스타포스:{' '}
-                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.starForce?.description ||
-                            `${optimalSet.selected.topItem.toolTip.starforce || optimalSet.selected.topItem.starforce || 0}성`}
+                          {optimalSet.selected.topItem?.toolTip?.upgradeInfo?.starForce?.description ||
+                            `${optimalSet.selected.topItem?.toolTip?.starforce || optimalSet.selected.topItem?.starforce || 0}성`}
                         </p>
                         <p>
                           📜 주문서:{' '}
-                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.scroll?.description || '정보 없음'}
+                          {optimalSet.selected.topItem?.toolTip?.upgradeInfo?.scroll?.description || '정보 없음'}
                         </p>
                         <p>
                           🔥 추가옵션:{' '}
-                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.exOption?.description || '정보 없음'}
+                          {optimalSet.selected.topItem?.toolTip?.upgradeInfo?.exOption?.description || '정보 없음'}
                         </p>
                         <p>
                           🟨 잠재능력:{' '}
-                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.potential?.description || '없음'}
+                          {optimalSet.selected.topItem?.toolTip?.upgradeInfo?.potential?.description || '없음'}
                         </p>
                         <p className="sm:col-span-2">
                           🟦 에디셔널:{' '}
-                          {optimalSet.selected.topItem.toolTip.upgradeInfo?.additionalPotential?.description || '없음'}
+                          {optimalSet.selected.topItem?.toolTip?.upgradeInfo?.additionalPotential?.description || '없음'}
                         </p>
                       </div>
                     </div>
