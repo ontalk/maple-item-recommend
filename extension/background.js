@@ -6,6 +6,7 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6시간
 const MAX_DAILY_SEARCHES = 100;
 
 const cache = new Map();
+const inFlight = new Map();
 let usage = { day: '', count: 0 };
 
 function today() {
@@ -80,33 +81,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     const page = Number(message.payload?.page || 1);
     const isNewSearch = page === 1;
+    const cacheKey = JSON.stringify(message.payload);
 
     // 캐시 확인
-    const cacheKey = JSON.stringify(message.payload);
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
       resetUsageIfNeeded();
       console.log('📦 캐시에서 데이터 반환');
       return { ok: true, data: cached.data, cached: true, remaining: MAX_DAILY_SEARCHES - usage.count };
     }
-    
-    // 공식 옥션은 같은 검색어의 페이지 이동을 검색 횟수로 차감하지 않는다.
-    // 따라서 최초 검색(page 1)만 일일 검색 한도를 확인한다.
-    resetUsageIfNeeded();
-    if (isNewSearch && usage.count >= MAX_DAILY_SEARCHES) {
-      throw new Error(`오늘의 안전 검색 한도(${MAX_DAILY_SEARCHES}회)에 도달했습니다.`);
+
+    // 같은 검색어·페이지 요청이 동시에 들어오면 API 요청을 하나로 합친다.
+    // 중복 브리지/리스너가 있어도 검색 횟수가 중복 차감되지 않도록 한다.
+    const existingRequest = inFlight.get(cacheKey);
+    if (existingRequest) {
+      console.log('🔁 중복 요청 병합:', message.payload.filters?.keyword, `(페이지: ${page})`);
+      const shared = await existingRequest;
+      return { ...shared, cached: true };
     }
-    
-    // 검색 실행
-    const data = await searchAuction(message.payload);
-    
-    // 페이지별 결과는 각각 캐시하지만, 검색 횟수는 최초 페이지에서만 차감한다.
-    if (isNewSearch) {
-      usage.count += 1;
+
+    const requestPromise = (async () => {
+      // 공식 옥션은 같은 검색어의 페이지 이동을 검색 횟수로 차감하지 않는다.
+      // 따라서 최초 검색(page 1)만 일일 검색 한도를 확인한다.
+      resetUsageIfNeeded();
+      if (isNewSearch && usage.count >= MAX_DAILY_SEARCHES) {
+        throw new Error(`오늘의 안전 검색 한도(${MAX_DAILY_SEARCHES}회)에 도달했습니다.`);
+      }
+
+      const data = await searchAuction(message.payload);
+
+      // 페이지별 결과는 각각 캐시하지만, 검색 횟수는 최초 페이지에서만 차감한다.
+      if (isNewSearch) {
+        usage.count += 1;
+      }
+      cache.set(cacheKey, { createdAt: Date.now(), data });
+
+      return { ok: true, data, cached: false, remaining: MAX_DAILY_SEARCHES - usage.count };
+    })();
+
+    inFlight.set(cacheKey, requestPromise);
+
+    try {
+      return await requestPromise;
+    } finally {
+      inFlight.delete(cacheKey);
     }
-    cache.set(cacheKey, { createdAt: Date.now(), data });
-    
-    return { ok: true, data, cached: false, remaining: MAX_DAILY_SEARCHES - usage.count };
   })()
     .then(sendResponse)
     .catch((error) => {

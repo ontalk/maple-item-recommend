@@ -1,5 +1,11 @@
 // 페이지 컨텍스트에서 실행되는 스크립트 (CSP 제한 없음)
 (function() {
+  if (window.__mapleAuctionPageScriptInstalled) {
+    console.warn('⚠️ Maple Auction page script already installed');
+    return;
+  }
+  window.__mapleAuctionPageScriptInstalled = true;
+
   const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
   const DEVICE_ID_KEY = 'maple-auction-device-id';
 

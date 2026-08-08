@@ -1,6 +1,11 @@
 // 옥션 페이지에 주입되어 검색 요청을 처리하는 스크립트
 // CSP 우회: CustomEvent를 사용한 통신
 
+if (globalThis.__mapleAuctionInjectorInstalled) {
+  console.warn('⚠️ Maple Auction injector already installed');
+} else {
+globalThis.__mapleAuctionInjectorInstalled = true;
+
 console.log('🎯 Maple Auction Injector 로딩 중...');
 
 // 페이지 컨텍스트에서 실행될 함수를 window.eval 없이 주입
@@ -62,3 +67,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 console.log('✅ Maple Auction Injector 준비 완료');
+}

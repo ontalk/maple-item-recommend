@@ -1,3 +1,8 @@
+if (globalThis.__mapleItemRecommendAppBridgeInstalled) {
+  console.warn('⚠️ Maple Item Recommend app bridge already installed');
+} else {
+  globalThis.__mapleItemRecommendAppBridgeInstalled = true;
+
 window.addEventListener('message', (event) => {
   if (event.source !== window || event.data?.source !== 'maple-item-recommend' || event.data?.type !== 'AUCTION_SEARCH') return;
 
@@ -24,3 +29,4 @@ window.addEventListener('message', (event) => {
     }, window.location.origin);
   });
 });
+}
