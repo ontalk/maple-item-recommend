@@ -30,6 +30,26 @@ function toNumber(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// 옥션 응답은 보통 메소 단위 숫자를 주지만, 일부 응답/표시값은
+// `1조 1000억`, `11,000,000,000`처럼 한국식 단위로 내려올 수 있다.
+function parseMesos(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value !== 'string') return 0;
+
+  const text = value.trim().replace(/,/g, '');
+  if (!text) return 0;
+  const plain = Number(text);
+  if (Number.isFinite(plain)) return plain;
+
+  const unit = text.match(/^(?:(\d+(?:\.\d+)?)조)?\s*(?:(\d+(?:\.\d+)?)억)?\s*(?:(\d+(?:\.\d+)?)만)?\s*(?:(\d+(?:\.\d+)?)천)?\s*(\d+)?$/);
+  if (!unit || !unit.slice(1).some(Boolean)) return 0;
+  return (Number(unit[1] || 0) * 1_000_000_000_000)
+    + (Number(unit[2] || 0) * 100_000_000)
+    + (Number(unit[3] || 0) * 10_000)
+    + (Number(unit[4] || 0) * 1_000)
+    + Number(unit[5] || 0);
+}
+
 function toOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const parsed = Number(value);
@@ -133,7 +153,7 @@ function isRateLimitedError(error: unknown): boolean {
 }
 
 function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, ignoreStarforce = false): boolean {
-  const price = toNumber(item.pricePerItem || item.price);
+  const price = parseMesos(item.pricePerItem || item.price);
   const tooltip = item.toolTip;
   // enhancementOption은 옥션 API에 이미 전달된다. 응답 툴팁에 등급 필드가
   // 생략된 경우에는 '0등급'으로 간주하면 정상 매물까지 전부 탈락하므로,
@@ -448,7 +468,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             setProgress(`${equipment.name} 조건 매칭 완료 (${filteredItems.length}/${allItems.length}개 매물) · 분석 중...`);
 
             const prices = filteredItems
-              .map((item) => toNumber(item.pricePerItem || item.price))
+              .map((item) => parseMesos(item.pricePerItem || item.price))
               .filter((price) => price > 0);
             
             const attackPowers = filteredItems
@@ -460,7 +480,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             const valueListing = filteredItems
               .map((item) => ({
                 item,
-                price: toNumber(item.pricePerItem || item.price),
+                price: parseMesos(item.pricePerItem || item.price),
                 power: Number(item.attackPowerDiff || 0),
               }))
               .filter((listing) => listing.price > 0)
