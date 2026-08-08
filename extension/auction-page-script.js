@@ -20,9 +20,9 @@
     console.log('🔍 페이지 컨텍스트에서 옥션 검색 시작:', payload.filters.keyword);
     
     try {
+      // 현재 공식 옥션 요청의 기본 Payload와 동일하게 검색어만 전송한다.
       const requestFilters = {
         keyword: payload.filters?.keyword || '',
-        ...(payload.filters?.itemCategory ? { itemCategory: payload.filters.itemCategory } : {}),
       };
 
       const makeRequest = (filters) => fetch(SEARCH_URL, {
@@ -43,7 +43,7 @@
           page: payload.page || 1,
           limit: payload.limit || 20,
           sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
-          saveRecentKeyword: false,
+          saveRecentKeyword: true,
         }),
       });
 
@@ -52,14 +52,6 @@
       let response = await makeRequest(requestFilters);
       
       let text = await response.text();
-
-      // 일부 장비는 ARMOR 카테고리와 함께 검색하면 4006을 반환한다.
-      // 해당 아이템에 한해 카테고리를 제거하고 딱 한 번 재시도한다.
-      if (response.status === 400 && text.includes('4006') && requestFilters.itemCategory) {
-        console.warn(`⚠️ ${payload.filters.keyword}: 카테고리 없이 재검색합니다.`);
-        response = await makeRequest({ keyword: requestFilters.keyword });
-        text = await response.text();
-      }
 
       console.log(`📦 옥션 API 응답: ${response.status} (${payload.filters.keyword})`);
       
