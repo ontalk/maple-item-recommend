@@ -156,10 +156,11 @@ function optimizeEquipmentSet(
   let states: OptimizationState[] = [{ cost: 0, power: 0, selections: [] }];
 
   for (const candidates of Object.values(candidatesByPart)) {
-    const nextStates: OptimizationState[] = [...states];
+    const nextStates: OptimizationState[] = [];
     for (const state of states) {
       for (const candidate of candidates) {
         const price = candidate.recommendedPrice || 0;
+        if (state.selections.some((selected) => selected.part === candidate.part && selected.equipment.name === candidate.equipment.name)) continue;
         if (!price || state.cost + price > budget) continue;
         nextStates.push({
           cost: state.cost + price,
@@ -194,7 +195,9 @@ function optimizeEquipmentSet(
 }
 
 const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
+SEARCH_PARTS.push('보조무기');
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
+const EQUIPMENT_SLOT_COUNTS: Record<string, number> = { 반지: 4, 펜던트: 2 };
 const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
   전사: '나이트',
   마법사: '메이지',
@@ -203,13 +206,14 @@ const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
   해적: '파이렛',
 };
 
-function isVisibleForJob(equipment: EquipmentOption, jobClass: string): boolean {
+function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?: string): boolean {
+  if (equipment.job) return equipment.job === exactJob;
   const jobSuffixes = Object.values(JOB_SUFFIX_BY_CLASS);
   const isJobSpecific = jobSuffixes.some((suffix) => equipment.name.includes(suffix));
   return !isJobSpecific || equipment.name.includes(JOB_SUFFIX_BY_CLASS[jobClass] || '');
 }
 
-export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
+export function AuctionSearch({ benchmark, characterClass }: { benchmark?: BenchmarkComparison; characterClass?: string }) {
   const searchLockRef = useRef(false);
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 108912176,
@@ -233,9 +237,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
   const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
-    () => new Set(ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, '해적')).map((equipment) => equipment.name))
+    () => new Set(ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, '해적', characterClass || '해적')).map((equipment) => equipment.name))
   );
-  const visibleEquipment = ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, jobClass));
+  const visibleEquipment = ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, jobClass, characterClass));
 
   const setNumber = (key: keyof AuctionProfile, value: string) => {
     setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
@@ -475,15 +479,25 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         setOptimalSets([...allOptimalSets]);
       }
 
-      const optimized = optimizeEquipmentSet(candidatesByPart, budget, targetPower);
-      const selectedByPart = new Map(optimized.selections.map((selection) => [selection.part, selection]));
-      const optimizedSets = Object.entries(candidatesByPart).flatMap(([part, candidates]) => {
-        const selected = selectedByPart.get(part);
-        if (!selected) return [];
+      const optimizationGroups: Record<string, EquipmentSearchResult[]> = {};
+      Object.entries(candidatesByPart).forEach(([part, candidates]) => {
+        const slotCount = EQUIPMENT_SLOT_COUNTS[part] || 1;
+        for (let slot = 1; slot <= slotCount; slot += 1) {
+          optimizationGroups[`${part}-${slot}`] = candidates;
+        }
+      });
+
+      const optimized = optimizeEquipmentSet(optimizationGroups, budget, targetPower);
+      const usedSlots: Record<string, number> = {};
+      const optimizedSets = optimized.selections.map((selected) => {
+        const basePart = selected.part.replace(/-\d+$/, '');
+        const slot = (usedSlots[basePart] || 0) + 1;
+        usedSlots[basePart] = slot;
+        const candidates = candidatesByPart[basePart] || [];
         return {
-          part,
-          selected,
-          alternatives: candidates.filter((candidate) => candidate !== selected).slice(0, 4),
+          part: EQUIPMENT_SLOT_COUNTS[basePart] ? `${basePart} ${slot}` : basePart,
+          selected: { ...selected, part: basePart },
+          alternatives: candidates.filter((candidate) => candidate.equipment.name !== selected.equipment.name).slice(0, 4),
         };
       });
 
@@ -591,7 +605,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                 setJobClass(nextJob);
                 setSelectedEquipmentNames((current) => new Set(
                   ALL_SEARCHABLE_EQUIPMENT
-                    .filter((equipment) => isVisibleForJob(equipment, nextJob) && current.has(equipment.name))
+                    .filter((equipment) => isVisibleForJob(equipment, nextJob, characterClass) && current.has(equipment.name))
                     .map((equipment) => equipment.name)
                 ));
               }}

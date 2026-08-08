@@ -119,7 +119,10 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-gray-900">경매장 기반 목표 세팅</h2>
           </div>
           <p className="text-gray-600 mb-6 max-w-2xl">목표 전투력 기준의 최소 세팅을 로그인된 메이플 옥션에서 직접 조회해, 실제 매물 가격으로 비교합니다.</p>
-          <AuctionSearch benchmark={searchData.data.benchmark} />
+          <AuctionSearch
+            benchmark={searchData.data.benchmark}
+            characterClass={searchData.data?.basic?.character_class}
+          />
         </div>
       </section>}
 

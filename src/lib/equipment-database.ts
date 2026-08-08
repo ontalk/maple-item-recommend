@@ -1,6 +1,7 @@
 // 메이플스토리 장비 데이터베이스 - 정확한 장비 목록
 
 export interface EquipmentOption {
+  job?: string;
   name: string;
   set: '보스장신구' | '여명' | '칠흑' | '앱솔랩스' | '아케인셰이드' | '에테르넬';
   minLevel: number;
@@ -264,9 +265,35 @@ export const ETERNAL_SET: Record<string, EquipmentOption[]> = {
 };
 
 // ===== 부위별 모든 장비 통합 =====
+const SECONDARY_WEAPON_SET: EquipmentOption[] = [
+  ['히어로', '버츄스 메달'], ['팔라딘', '세이크리드 로자리오'], ['다크나이트', '버서크 체인'],
+  ['불독', '적녹의 서 <종장>'], ['썬콜', '청은의 서 <종장>'], ['비숍', '백금의 서 <종장>'],
+  ['보우마스터', '블라스트 페더'], ['신궁', '전발적중'], ['패스파인더', '퍼펙트 렐릭'],
+  ['나이트로드', '파사부'], ['섀도어', '슬래싱 섀도우'], ['듀얼블레이드', '아케인셰이드 블레이드'],
+  ['바이퍼', '리스트 아머'], ['캡틴', '팔콘아이'], ['캐논슈터', '봄버스 센터파이어'],
+  ['소울마스터', '에레브의 광휘'], ['플레임위자드', '에레브의 광휘'], ['윈드브레이커', '에레브의 광휘'],
+  ['나이트워커', '에레브의 광휘'], ['스트라이커', '에레브의 광휘'], ['아란', '천룡추'],
+  ['에반', '드래곤마스터의 유산'], ['루미너스', '카르마 오브'], ['메르세데스', '무한의 마법 화살'],
+  ['팬텀', '데르니에 카르트'], ['은월', '황금빛 여우구슬'], ['블래스터', '익스플로시브 필<3호>'],
+  ['배틀메이지', '맥시마이즈 볼'], ['와일드헌터', '와일드 팡'], ['메카닉', '이터널 매그넘'],
+  ['제논', '하이브리드 하트'], ['데몬슬레이어', '극한의 포스실드'], ['데몬슬레이어', '루인 포스실드'],
+  ['데몬어벤져', '극한의 포스실드'], ['데몬어벤져', '루인 포스실드'], ['카데나', '트랜스미터 type:A'],
+  ['아델', '노블 브레이슬릿'], ['일리움', '글로리 매직윙'], ['아크', '얼티밋 패스'],
+  ['카인', 'D100 커스텀 웨폰 벨트'], ['칼리', '인피니트 헥스시커'], ['호영', '월장석 선추'],
+  ['라라', '빛나는 사옥 노리개'], ['렌', '자색 여의보주'], ['키네시스', '체스피스 디 퀸'],
+  ['레테', '녹스 마법깃펜'],
+].map(([job, name]): EquipmentOption => ({ job, name, set: '보스장신구', minLevel: 100, estimatedCost: 0 }));
+
+const EMBLEM_WEAPON_SET: EquipmentOption[] = [
+  ['카이저', '드래곤 엠블렘'], ['엔젤릭버스터', '엔젤 엠블렘'],
+].map(([job, name]): EquipmentOption => ({ job, name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
+
 export function getAllEquipmentOptions(part: string): EquipmentOption[] {
   const normalizedPart = normalizePart(part);
   const options: EquipmentOption[] = [];
+
+  if (normalizedPart === '보조무기') options.push(...SECONDARY_WEAPON_SET);
+  if (normalizedPart === '엠블렘') options.push(...EMBLEM_WEAPON_SET);
 
   // 보스 장신구
   if (BOSS_ACCESSORY[normalizedPart]) {
