@@ -4,7 +4,13 @@ if (globalThis.__mapleItemRecommendAppBridgeInstalled) {
   globalThis.__mapleItemRecommendAppBridgeInstalled = true;
 
 window.addEventListener('message', (event) => {
-  if (event.source !== window || event.data?.source !== 'maple-item-recommend' || event.data?.type !== 'AUCTION_SEARCH') return;
+  if (
+    event.origin !== window.location.origin ||
+    event.data?.source !== 'maple-item-recommend' ||
+    event.data?.type !== 'AUCTION_SEARCH'
+  ) return;
+
+  console.log('📨 Vercel 검색 요청 수신:', event.data.payload?.filters?.keyword, `(페이지: ${event.data.payload?.page || 1})`);
 
   const runtime = globalThis.chrome?.runtime;
 
