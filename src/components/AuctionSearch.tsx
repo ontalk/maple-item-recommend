@@ -50,6 +50,14 @@ interface OptimizationState {
   selections: EquipmentSearchResult[];
 }
 
+interface AuctionItemFilter {
+  minPrice: string;
+  maxPrice: string;
+  minStarforce: string;
+  minPotentialGrade: string;
+  minAdditionalPotentialGrade: string;
+}
+
 function isFatalAuctionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /426|6013|429|요청이 너무 많습니다|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch|Chrome Extension이 설치되지 않았습니다|브리지가 활성화되지 않았습니다|응답 시간 초과|확장 프로그램에 연결/i.test(message);
@@ -58,6 +66,26 @@ function isFatalAuctionError(error: unknown): boolean {
 function isRateLimitedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /429|요청이 너무 많습니다/i.test(message);
+}
+
+function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter): boolean {
+  const price = toNumber(item.pricePerItem || item.price);
+  const tooltip = item.toolTip;
+  const starforce = tooltip?.upgradeInfo?.starForce?.current ?? tooltip?.starforce ?? item.starforce ?? 0;
+  const potentialGrade = tooltip?.upgradeInfo?.potential?.grade ?? 0;
+  const additionalPotentialGrade = tooltip?.upgradeInfo?.additionalPotential?.grade ?? 0;
+  const minPrice = toNumber(filters.minPrice);
+  const maxPrice = toNumber(filters.maxPrice);
+  const minStarforce = toNumber(filters.minStarforce);
+  const minPotentialGrade = toNumber(filters.minPotentialGrade);
+  const minAdditionalPotentialGrade = toNumber(filters.minAdditionalPotentialGrade);
+
+  if (minPrice > 0 && price < minPrice) return false;
+  if (maxPrice > 0 && price > maxPrice) return false;
+  if (minStarforce > 0 && starforce < minStarforce) return false;
+  if (minPotentialGrade > 0 && potentialGrade < minPotentialGrade) return false;
+  if (minAdditionalPotentialGrade > 0 && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
+  return true;
 }
 
 function optimizeEquipmentSet(
@@ -117,6 +145,13 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   const [jobClass, setJobClass] = useState<string>('해적'); // 직업 선택
   const [budgetEok, setBudgetEok] = useState('20');
   const [targetPowerEok, setTargetPowerEok] = useState('2');
+  const [auctionFilters, setAuctionFilters] = useState<AuctionItemFilter>({
+    minPrice: '',
+    maxPrice: '',
+    minStarforce: '17',
+    minPotentialGrade: '3',
+    minAdditionalPotentialGrade: '2',
+  });
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -267,24 +302,26 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               }
             }
             
-            if (allItems.length === 0) {
+            const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters));
+
+            if (filteredItems.length === 0) {
               console.log(`  └─ ⚠️ ${equipment.name}: 매물 없음`);
               continue;
             }
 
-            setProgress(`${equipment.name} 전체 페이지 수집 완료 (${allItems.length}개 매물) · 분석 중...`);
+            setProgress(`${equipment.name} 조건 매칭 완료 (${filteredItems.length}/${allItems.length}개 매물) · 분석 중...`);
 
-            const prices = allItems
+            const prices = filteredItems
               .map((item) => toNumber(item.pricePerItem || item.price))
               .filter((price) => price > 0);
             
-            const attackPowers = allItems
+            const attackPowers = filteredItems
               .map((item) => item.attackPowerDiff || 0)
               .filter((power) => power > 0);
 
             const lowestPrice = prices.length ? Math.min(...prices) : null;
             const avgAttackPower = attackPowers.length ? Math.round(attackPowers.reduce((sum, p) => sum + p, 0) / attackPowers.length) : 0;
-            const valueListing = allItems
+            const valueListing = filteredItems
               .map((item) => ({
                 item,
                 price: toNumber(item.pricePerItem || item.price),
@@ -308,9 +345,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               avgAttackPowerDiff: avgAttackPower,
               recommendedPrice,
               recommendedPower,
-              listingCount: allItems.length,
+              listingCount: filteredItems.length,
               efficiency,
-              topItem: valueListing?.item || allItems[0],
+              topItem: valueListing?.item || filteredItems[0],
             });
           } catch (err) {
             // 로그인 세션이 끊긴 뒤에는 다음 아이템 검색도 모두 실패하므로
