@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Loader2, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
 import type { BenchmarkComparison } from '@/types';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
@@ -197,6 +197,7 @@ const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨�
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
+  const searchLockRef = useRef(false);
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 108912176,
     characterId: 29662388,
@@ -231,15 +232,22 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
 
   // 각 부위별로 모든 장비 옵션 검색
   const searchAllEquipmentOptions = async () => {
+    if (searchLockRef.current || isSearching) {
+      console.warn('⏳ 이미 검색 중인 요청은 중복 실행하지 않습니다.');
+      return;
+    }
+    searchLockRef.current = true;
     console.log('🚀 검색 시작!', { benchmark, profile });
     
     if (!benchmark) {
       console.error('❌ benchmark가 없습니다');
+      searchLockRef.current = false;
       return;
     }
     if (!Number.isInteger(profile.accountId) || !Number.isInteger(profile.characterId) || !Number.isInteger(profile.worldId) || profile.accountId <= 0 || profile.characterId <= 0 || profile.worldId <= 0) {
       setError('Account ID, Character ID, World ID를 모두 입력해주세요.');
       console.error('❌ Profile 정보가 올바르지 않습니다', profile);
+      searchLockRef.current = false;
       return;
     }
 
@@ -251,6 +259,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     if (selectedEquipmentNames.size === 0) {
       setError('검색할 아이템을 하나 이상 선택해주세요.');
       setIsSearching(false);
+      searchLockRef.current = false;
       return;
     }
 
@@ -268,6 +277,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     if (budget <= 0) {
       setError('사용할 메소를 0보다 크게 입력해주세요. 단위는 억 메소입니다.');
       setIsSearching(false);
+      searchLockRef.current = false;
       return;
     }
 
@@ -469,6 +479,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
       setProgress('');
     } finally {
       setIsSearching(false);
+      searchLockRef.current = false;
     }
   };
 
