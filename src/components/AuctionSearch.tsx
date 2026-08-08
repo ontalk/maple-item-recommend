@@ -126,7 +126,7 @@ function isRateLimitedError(error: unknown): boolean {
   return /429|요청이 너무 많습니다/i.test(message);
 }
 
-function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter): boolean {
+function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, ignoreStarforce = false): boolean {
   const price = toNumber(item.pricePerItem || item.price);
   const tooltip = item.toolTip;
   const starforce = tooltip?.upgradeInfo?.starForce?.current ?? tooltip?.starforce ?? item.starforce ?? 0;
@@ -141,8 +141,8 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter):
 
   if (minPrice > 0 && price < minPrice) return false;
   if (maxPrice > 0 && price > maxPrice) return false;
-  if (minStarforce > 0 && starforce < minStarforce) return false;
-  if (maxStarforce > 0 && starforce > maxStarforce) return false;
+  if (!ignoreStarforce && minStarforce > 0 && starforce < minStarforce) return false;
+  if (!ignoreStarforce && maxStarforce > 0 && starforce > maxStarforce) return false;
   if (minPotentialGrade > 0 && potentialGrade < minPotentialGrade) return false;
   if (minAdditionalPotentialGrade > 0 && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
   return true;
@@ -356,6 +356,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             }
             
             console.log(`  🔍 ${equipment.name} 검색 시작...`);
+            const ignoreStarforce = part === '보조무기' && equipment.name !== '아케인셰이드 블레이드';
             
             // 첫 페이지 검색
             let allItems: AuctionRawItem[] = [];
@@ -371,14 +372,14 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 exactMatch: true,
                 minPrice: toNumber(auctionFilters.minPrice),
                 maxPrice: toNumber(auctionFilters.maxPrice),
-                minStarforce: toNumber(auctionFilters.minStarforce),
-                maxStarforce: toNumber(auctionFilters.maxStarforce),
+                minStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.minStarforce),
+                maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade),
                 itemCategory: { itemDetailCategory: 'ARMOR' },
                 enhancementOption: {
-                  starforceMin: toNumber(auctionFilters.minStarforce) || undefined,
-                  starforceMax: toNumber(auctionFilters.maxStarforce) || undefined,
+                  starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
+                  starforceMax: ignoreStarforce ? undefined : (toNumber(auctionFilters.maxStarforce) || undefined),
                   potentialGrade: toNumber(auctionFilters.minPotentialGrade) || undefined,
                   additionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined,
                 },
@@ -407,7 +408,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               }
             }
             
-            const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters));
+            const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters, ignoreStarforce));
 
             if (filteredItems.length === 0) {
               console.log(`  └─ ⚠️ ${equipment.name}: 매물 없음`);
