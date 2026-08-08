@@ -199,11 +199,11 @@ SEARCH_PARTS.push('보조무기');
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 const EQUIPMENT_SLOT_COUNTS: Record<string, number> = { 반지: 4, 펜던트: 2 };
 const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
-  전사: '나이트',
-  마법사: '메이지',
-  궁수: '아처',
-  도적: '시프',
-  해적: '파이렛',
+  나이트: '나이트',
+  메이지: '메이지',
+  아처: '아처',
+  시프: '시프',
+  파이렛: '파이렛',
 };
 
 function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?: string): boolean {
@@ -220,7 +220,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
     characterId: 29662388,
     worldId: 5,
   });
-  const [jobClass, setJobClass] = useState<string>('해적'); // 직업 선택
+  const [jobClass, setJobClass] = useState<string>('파이렛'); // 옥션 장비 접미사 기준 직업 선택
   const [budgetEok, setBudgetEok] = useState('20');
   const [targetPowerEok, setTargetPowerEok] = useState('2');
   const [auctionFilters, setAuctionFilters] = useState<AuctionItemFilter>({
@@ -237,7 +237,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
   const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
-    () => new Set(ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, '해적', characterClass || '해적')).map((equipment) => equipment.name))
+    () => new Set(ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, '파이렛', characterClass || '해적')).map((equipment) => equipment.name))
   );
   const visibleEquipment = ALL_SEARCHABLE_EQUIPMENT.filter((equipment) => isVisibleForJob(equipment, jobClass, characterClass));
 
@@ -329,11 +329,11 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             const hasJobSuffix = jobSuffixes.some(suffix => equipment.name.includes(suffix));
             if (hasJobSuffix) {
               const jobMapping: Record<string, string> = {
-                '워리어': '나이트',
-                '마법사': '메이지',
-                '궁수': '아처',
-                '도적': '시프',
-                '해적': '파이렛',
+                '나이트': '나이트',
+                '메이지': '메이지',
+                '아처': '아처',
+                '시프': '시프',
+                '파이렛': '파이렛',
               };
               const targetSuffix = jobMapping[jobClass] || jobClass;
               if (!equipment.name.includes(targetSuffix)) {
@@ -612,11 +612,11 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition bg-white"
               disabled={isSearching}
             >
-              <option value="워리어">워리어 (전사)</option>
-              <option value="마법사">마법사</option>
-              <option value="궁수">궁수</option>
-              <option value="도적">도적</option>
-              <option value="해적">해적</option>
+              <option value="나이트">나이트</option>
+              <option value="메이지">메이지</option>
+              <option value="아처">아처</option>
+              <option value="시프">시프</option>
+              <option value="파이렛">파이렛</option>
             </select>
           </label>
         </div>
