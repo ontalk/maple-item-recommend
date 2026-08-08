@@ -30,6 +30,12 @@ function toNumber(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function toOptionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function formatMesos(value: number | null): string {
   if (value === null) return '매물 없음';
   if (value >= 100000000) return `${(value / 100000000).toFixed(1)}억`;
@@ -129,9 +135,26 @@ function isRateLimitedError(error: unknown): boolean {
 function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, ignoreStarforce = false): boolean {
   const price = toNumber(item.pricePerItem || item.price);
   const tooltip = item.toolTip;
-  const starforce = tooltip?.upgradeInfo?.starForce?.current ?? tooltip?.starforce ?? item.starforce ?? 0;
-  const potentialGrade = tooltip?.upgradeInfo?.potential?.grade ?? 0;
-  const additionalPotentialGrade = tooltip?.upgradeInfo?.additionalPotential?.grade ?? 0;
+  // enhancementOption은 옥션 API에 이미 전달된다. 응답 툴팁에 등급 필드가
+  // 생략된 경우에는 '0등급'으로 간주하면 정상 매물까지 전부 탈락하므로,
+  // 확인 가능한 값이 있을 때만 로컬에서 다시 비교한다.
+  const rawItem = item as AuctionRawItem & {
+    potentialGrade?: number;
+    additionalPotentialGrade?: number;
+    potential?: { grade?: number };
+    additionalPotential?: { grade?: number };
+  };
+  const starforce = toOptionalNumber(
+    tooltip?.upgradeInfo?.starForce?.current ?? tooltip?.starforce ?? item.starforce,
+  );
+  const potentialGrade = toOptionalNumber(
+    tooltip?.upgradeInfo?.potential?.grade ?? rawItem.potentialGrade ?? rawItem.potential?.grade,
+  );
+  const additionalPotentialGrade = toOptionalNumber(
+    tooltip?.upgradeInfo?.additionalPotential?.grade ??
+      rawItem.additionalPotentialGrade ??
+      rawItem.additionalPotential?.grade,
+  );
   const minPrice = toNumber(filters.minPrice);
   const maxPrice = toNumber(filters.maxPrice);
   const minStarforce = toNumber(filters.minStarforce);
@@ -141,10 +164,10 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
 
   if (minPrice > 0 && price < minPrice) return false;
   if (maxPrice > 0 && price > maxPrice) return false;
-  if (!ignoreStarforce && minStarforce > 0 && starforce < minStarforce) return false;
-  if (!ignoreStarforce && maxStarforce > 0 && starforce > maxStarforce) return false;
-  if (minPotentialGrade > 0 && potentialGrade < minPotentialGrade) return false;
-  if (minAdditionalPotentialGrade > 0 && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
+  if (!ignoreStarforce && minStarforce > 0 && starforce !== undefined && starforce < minStarforce) return false;
+  if (!ignoreStarforce && maxStarforce > 0 && starforce !== undefined && starforce > maxStarforce) return false;
+  if (minPotentialGrade > 0 && potentialGrade !== undefined && potentialGrade < minPotentialGrade) return false;
+  if (minAdditionalPotentialGrade > 0 && additionalPotentialGrade !== undefined && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
   return true;
 }
 
@@ -418,7 +441,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters, ignoreStarforce));
 
             if (filteredItems.length === 0) {
-              console.log(`  └─ ⚠️ ${equipment.name}: 매물 없음`);
+              console.log(`  └─ ⚠️ ${equipment.name}: 조건 통과 매물 없음 (수집 ${allItems.length}개)`);
               continue;
             }
 
@@ -515,7 +538,17 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
       });
 
       setOptimalSets(optimizedSets);
-      setProgress(`✓ 최적 조합 계산 완료! ${optimizedSets.length}개 부위 · ${formatMesos(optimized.cost)} 사용 · 전투력 +${optimized.power.toLocaleString()}`);
+      if (optimizedSets.length === 0) {
+        const searchedCandidateCount = Object.values(candidatesByPart)
+          .reduce((sum, candidates) => sum + candidates.length, 0);
+        if (searchedCandidateCount === 0) {
+          setProgress('⚠️ 옥션 매물은 찾았지만 현재 구매 조건을 통과한 매물이 없습니다. 잠재/에디셔널/스타포스 조건을 낮춰 다시 검색해주세요.');
+        } else {
+          setProgress(`⚠️ 조건을 통과한 매물 ${searchedCandidateCount}개는 찾았지만 입력한 예산(${formatMesos(budget)}) 안에 들어오는 조합이 없습니다. 예산을 늘리거나 가격 조건을 낮춰주세요.`);
+        }
+      } else {
+        setProgress(`✓ 최적 조합 계산 완료! ${optimizedSets.length}개 부위 · ${formatMesos(optimized.cost)} 사용 · 전투력 +${optimized.power.toLocaleString()}`);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '옥션 검색에 실패했습니다.');
       setProgress('');
