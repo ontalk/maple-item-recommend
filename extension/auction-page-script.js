@@ -35,28 +35,50 @@
         keyword: payload.filters?.keyword || '',
       };
 
-      const makeRequest = (filters) => fetch(SEARCH_URL, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
+      const makeRequest = (filters) => {
+        const page = Number(payload.page || 1);
+        const headers = {
           'Accept': 'application/json, text/plain, */*',
-          'Content-Type': 'application/json',
           'x-client-version': '1.0.1',
           'x-device-id': getDeviceId(),
           'x-platform': 'PC_WEB',
-        },
-        body: JSON.stringify({
-          accountId: payload.accountId,
-          characterId: payload.characterId,
-          worldId: payload.worldId,
-          filters,
-          page: payload.page || 1,
-          limit: payload.limit || 20,
-          sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
-          // 최초 검색만 새 검색어로 기록한다. 페이지 이동은 같은 검색의 연속 조회다.
-          saveRecentKeyword: Number(payload.page || 1) === 1,
-        }),
-      });
+        };
+
+        // 공식 옥션은 페이지 2부터 POST 검색이 아니라 GET으로 기존 검색 결과를 넘긴다.
+        if (page > 1) {
+          const query = new URLSearchParams({
+            accountId: String(payload.accountId),
+            page: String(page),
+            limit: String(payload.limit || 20),
+            sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
+            characterId: String(payload.characterId),
+          });
+          return fetch(`${SEARCH_URL}?${query.toString()}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers,
+          });
+        }
+
+        return fetch(SEARCH_URL, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accountId: payload.accountId,
+            characterId: payload.characterId,
+            worldId: payload.worldId,
+            filters,
+            page: 1,
+            limit: payload.limit || 20,
+            sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
+            saveRecentKeyword: true,
+          }),
+        });
+      };
 
       // 공식 옥션 웹 요청과 동일하게 검색어/카테고리만 전송한다.
       // 별·잠재 필터는 검색 결과를 받은 뒤 추천 로직에서 처리한다.
