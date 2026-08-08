@@ -7,10 +7,13 @@ import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/a
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
 
 interface EquipmentSearchResult {
+  part: string;
   equipment: EquipmentOption;
   lowestPrice: number | null;
   medianPrice: number | null;
   avgAttackPowerDiff: number; // 평균 전투력 증가량
+  recommendedPrice: number | null;
+  recommendedPower: number;
   listingCount: number;
   efficiency: number; // 효율 = 전투력 / 가격
   topItem?: AuctionRawItem;
@@ -41,6 +44,12 @@ function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
+interface OptimizationState {
+  cost: number;
+  power: number;
+  selections: EquipmentSearchResult[];
+}
+
 function isFatalAuctionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /426|6013|429|요청이 너무 많습니다|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch/i.test(message);
@@ -51,6 +60,51 @@ function isRateLimitedError(error: unknown): boolean {
   return /429|요청이 너무 많습니다/i.test(message);
 }
 
+function optimizeEquipmentSet(
+  candidatesByPart: Record<string, EquipmentSearchResult[]>,
+  budget: number,
+  targetPower: number,
+): OptimizationState {
+  let states: OptimizationState[] = [{ cost: 0, power: 0, selections: [] }];
+
+  for (const candidates of Object.values(candidatesByPart)) {
+    const nextStates: OptimizationState[] = [...states];
+    for (const state of states) {
+      for (const candidate of candidates) {
+        const price = candidate.recommendedPrice || 0;
+        if (!price || state.cost + price > budget) continue;
+        nextStates.push({
+          cost: state.cost + price,
+          power: state.power + candidate.recommendedPower,
+          selections: [...state.selections, candidate],
+        });
+      }
+    }
+
+    states = nextStates
+      .sort((left, right) => {
+        const leftScore = targetPower > 0 && left.power >= targetPower
+          ? 1_000_000_000_000 - left.cost
+          : left.power / Math.max(left.cost, 1);
+        const rightScore = targetPower > 0 && right.power >= targetPower
+          ? 1_000_000_000_000 - right.cost
+          : right.power / Math.max(right.cost, 1);
+        return rightScore - leftScore;
+      })
+      .slice(0, 3000);
+  }
+
+  const reachedTarget = states.filter((state) => targetPower > 0 && state.power >= targetPower);
+  if (reachedTarget.length) {
+    return reachedTarget.sort((left, right) => left.cost - right.cost || right.power - left.power)[0];
+  }
+  return states.sort((left, right) => right.power - left.power || left.cost - right.cost)[0] || {
+    cost: 0,
+    power: 0,
+    selections: [],
+  };
+}
+
 const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식'];
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 
@@ -58,9 +112,11 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 108912176,
     characterId: 29662388,
-    worldId: 8,
+    worldId: 5,
   });
   const [jobClass, setJobClass] = useState<string>('해적'); // 직업 선택
+  const [budgetEok, setBudgetEok] = useState('20');
+  const [targetPowerEok, setTargetPowerEok] = useState('2');
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -105,6 +161,15 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     // 선택된 아이템이 있는 부위만 검색
     const partsToSearch = SEARCH_PARTS;
     const allOptimalSets: OptimalSet[] = [];
+    const candidatesByPart: Record<string, EquipmentSearchResult[]> = {};
+    const budget = Math.max(0, toNumber(budgetEok)) * 100000000;
+    const targetPower = Math.max(0, toNumber(targetPowerEok)) * 100000000;
+
+    if (budget <= 0) {
+      setError('사용할 메소를 0보다 크게 입력해주세요. 단위는 억 메소입니다.');
+      setIsSearching(false);
+      return;
+    }
 
     try {
       let searchCount = 0;
@@ -219,16 +284,33 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
 
             const lowestPrice = prices.length ? Math.min(...prices) : null;
             const avgAttackPower = attackPowers.length ? Math.round(attackPowers.reduce((sum, p) => sum + p, 0) / attackPowers.length) : 0;
-            const efficiency = lowestPrice && avgAttackPower ? (avgAttackPower / lowestPrice) * 1000000000 : 0;
+            const valueListing = allItems
+              .map((item) => ({
+                item,
+                price: toNumber(item.pricePerItem || item.price),
+                power: Number(item.attackPowerDiff || 0),
+              }))
+              .filter((listing) => listing.price > 0)
+              .sort((left, right) => {
+                const leftEfficiency = left.power > 0 ? left.power / left.price : 0;
+                const rightEfficiency = right.power > 0 ? right.power / right.price : 0;
+                return rightEfficiency - leftEfficiency || left.price - right.price;
+              })[0];
+            const recommendedPrice = valueListing?.price || lowestPrice;
+            const recommendedPower = valueListing?.power || avgAttackPower;
+            const efficiency = recommendedPrice && recommendedPower ? (recommendedPower / recommendedPrice) * 1000000000 : 0;
 
             partResults.push({
+              part,
               equipment,
               lowestPrice,
               medianPrice: median(prices),
               avgAttackPowerDiff: avgAttackPower,
+              recommendedPrice,
+              recommendedPower,
               listingCount: allItems.length,
               efficiency,
-              topItem: allItems[0],
+              topItem: valueListing?.item || allItems[0],
             });
           } catch (err) {
             // 로그인 세션이 끊긴 뒤에는 다음 아이템 검색도 모두 실패하므로
@@ -247,6 +329,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         partResults.sort((a, b) => b.efficiency - a.efficiency);
 
         if (partResults.length > 0) {
+          candidatesByPart[part] = partResults;
           allOptimalSets.push({
             part,
             selected: partResults[0], // 가장 효율 좋은 것
@@ -258,7 +341,20 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         setOptimalSets([...allOptimalSets]);
       }
 
-      setProgress(`✓ 검색 완료! ${partsToSearch.length}개 부위의 최적 템셋을 분석했습니다.`);
+      const optimized = optimizeEquipmentSet(candidatesByPart, budget, targetPower);
+      const selectedByPart = new Map(optimized.selections.map((selection) => [selection.part, selection]));
+      const optimizedSets = Object.entries(candidatesByPart).flatMap(([part, candidates]) => {
+        const selected = selectedByPart.get(part);
+        if (!selected) return [];
+        return {
+          part,
+          selected,
+          alternatives: candidates.filter((candidate) => candidate !== selected).slice(0, 4),
+        };
+      });
+
+      setOptimalSets(optimizedSets);
+      setProgress(`✓ 최적 조합 계산 완료! ${optimizedSets.length}개 부위 · ${formatMesos(optimized.cost)} 사용 · 전투력 +${optimized.power.toLocaleString()}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '옥션 검색에 실패했습니다.');
       setProgress('');
@@ -270,6 +366,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   if (!benchmark) return null;
 
   const isProfileValid = Number.isInteger(profile.accountId) && Number.isInteger(profile.characterId) && Number.isInteger(profile.worldId) && profile.accountId > 0 && profile.characterId > 0 && profile.worldId > 0;
+  const selectedCost = optimalSets.reduce((sum, set) => sum + (set.selected.recommendedPrice || 0), 0);
+  const selectedPower = optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
+  const targetPower = Math.max(0, toNumber(targetPowerEok)) * 100000000;
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
@@ -362,6 +461,33 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               <option value="도적">도적</option>
               <option value="해적">해적</option>
             </select>
+          </label>
+        </div>
+
+        <div className="mb-4 grid gap-4 md:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">💰 사용할 메소 (억)</span>
+            <input
+              value={budgetEok}
+              onChange={(event) => setBudgetEok(event.target.value)}
+              inputMode="decimal"
+              placeholder="예: 20"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400"
+              disabled={isSearching}
+            />
+            <span className="mt-1 block text-xs text-gray-500">예: 20 입력 시 20억 메소까지 사용</span>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">🎯 목표 전투력 증가 (억)</span>
+            <input
+              value={targetPowerEok}
+              onChange={(event) => setTargetPowerEok(event.target.value)}
+              inputMode="decimal"
+              placeholder="예: 2"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400"
+              disabled={isSearching}
+            />
+            <span className="mt-1 block text-xs text-gray-500">달성 가능하면 최소 비용 조합을 우선 추천</span>
           </label>
         </div>
 
@@ -501,7 +627,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         <div>
           <div className="flex items-center justify-between mb-6">
             <h4 className="text-2xl font-bold text-gray-900">⚡ 최적 템셋 추천</h4>
-            <p className="text-sm text-gray-600">{optimalSets.length}개 부위 분석 완료</p>
+            <p className={`text-sm font-semibold ${selectedPower >= targetPower ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {selectedPower >= targetPower ? '목표 달성 조합' : '예산 내 최대 전투력 조합'} · {optimalSets.length}개 부위
+            </p>
           </div>
 
           {/* 총 예상 비용 */}
@@ -510,13 +638,13 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               <div>
                 <p className="text-sm text-gray-600 mb-1">💰 총 예상 비용</p>
                 <p className="text-3xl font-extrabold text-maple-orange">
-                  {formatMesos(optimalSets.reduce((sum, set) => sum + (set.selected.lowestPrice || 0), 0))}
+                  {formatMesos(selectedCost)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">⚡ 총 전투력 증가</p>
                 <p className="text-3xl font-extrabold text-blue-600">
-                  +{optimalSets.reduce((sum, set) => sum + set.selected.avgAttackPowerDiff, 0).toLocaleString()}만
+                  +{selectedPower.toLocaleString()}
                 </p>
               </div>
               <div>
@@ -548,7 +676,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-extrabold text-maple-orange">
-                        {formatMesos(optimalSet.selected.lowestPrice)}
+                        {formatMesos(optimalSet.selected.recommendedPrice)}
                       </p>
                       <p className="text-xs text-gray-500">매물 {optimalSet.selected.listingCount}개</p>
                     </div>
@@ -556,7 +684,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                   <div className="flex items-center gap-4 mt-2 pt-2 border-t border-emerald-200">
                     <div>
                       <p className="text-xs text-gray-500">전투력</p>
-                      <p className="text-sm font-bold text-blue-600">+{optimalSet.selected.avgAttackPowerDiff.toLocaleString()}만</p>
+                      <p className="text-sm font-bold text-blue-600">+{optimalSet.selected.recommendedPower.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">효율</p>
@@ -580,8 +708,8 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                               <p className="text-xs text-gray-500">{alt.equipment.set} · 효율 {alt.efficiency.toFixed(2)}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-bold text-gray-700">{formatMesos(alt.lowestPrice)}</p>
-                              <p className="text-xs text-gray-500">+{alt.avgAttackPowerDiff.toLocaleString()}만</p>
+                      <p className="text-sm font-bold text-gray-700">{formatMesos(alt.recommendedPrice)}</p>
+                      <p className="text-xs text-gray-500">+{alt.recommendedPower.toLocaleString()}</p>
                             </div>
                           </div>
                         </div>
