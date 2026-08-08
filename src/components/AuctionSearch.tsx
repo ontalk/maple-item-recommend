@@ -44,6 +44,63 @@ function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
+type DetailEntry = string | { text?: string; description?: string; value?: string | number };
+
+function formatDetailEntries(entries?: DetailEntry[]): string[] {
+  return (entries ?? [])
+    .map((entry) => {
+      if (typeof entry === 'string') return entry;
+      return entry.text ?? entry.description ?? (entry.value === undefined ? '' : String(entry.value));
+    })
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function formatStatEntries(stats?: Record<string, number>): string[] {
+  if (!stats) return [];
+  const labels: Record<string, string> = {
+    str: 'STR', dex: 'DEX', int: 'INT', luk: 'LUK', hp: '최대 HP', mp: '최대 MP',
+    attackPower: '공격력', magicPower: '마력', allStat: '올스탯', bossDamage: '보스 몬스터 데미지',
+    ignoreDefense: '방어율 무시', damage: '데미지',
+  };
+  return Object.entries(stats)
+    .filter(([, value]) => Number(value) !== 0)
+    .map(([key, value]) => `${labels[key] ?? key} +${value}`);
+}
+
+function AuctionTooltipDetails({ item }: { item: AuctionRawItem }) {
+  const tooltip = item.toolTip;
+  if (!tooltip) return null;
+  const upgradeInfo = tooltip.upgradeInfo;
+  const exOptionEntries = formatDetailEntries(upgradeInfo?.exOption?.entries);
+  const potentialEntries = formatDetailEntries(upgradeInfo?.potential?.entries);
+  const additionalPotentialEntries = formatDetailEntries(upgradeInfo?.additionalPotential?.entries);
+  const exOptionStats = formatStatEntries(tooltip.exOptionStat);
+  const starForce = upgradeInfo?.starForce;
+
+  return (
+    <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3 text-xs text-gray-700">
+      <p className="mb-2 font-bold text-gray-900">🔍 추천 매물 상세</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <p>⭐ 스타포스: {starForce?.current ?? tooltip.starforce ?? item.starforce ?? 0}성{starForce?.max !== undefined ? ` (최대 ${starForce.max}성)` : ''}</p>
+        <p>📜 주문서: {upgradeInfo?.scroll?.description || '정보 없음'}</p>
+        <div>
+          <p className="font-semibold text-gray-800">🔥 추옵</p>
+          {exOptionEntries.length > 0 ? <ul className="mt-1 list-disc pl-5">{exOptionEntries.map((entry, index) => <li key={`ex-${index}`}>{entry}</li>)}</ul> : exOptionStats.length > 0 ? <ul className="mt-1 list-disc pl-5">{exOptionStats.map((entry) => <li key={entry}>{entry}</li>)}</ul> : <p className="mt-1">{upgradeInfo?.exOption?.description || '추옵 정보 없음'}</p>}
+        </div>
+        <div>
+          <p className="font-semibold text-gray-800">🟨 잠재능력</p>
+          {potentialEntries.length > 0 ? <ul className="mt-1 list-disc pl-5">{potentialEntries.map((entry, index) => <li key={`potential-${index}`}>{entry}</li>)}</ul> : <p className="mt-1">{upgradeInfo?.potential?.description || '잠재능력 없음'}</p>}
+        </div>
+        <div className="sm:col-span-2">
+          <p className="font-semibold text-gray-800">🟦 에디셔널 잠재능력</p>
+          {additionalPotentialEntries.length > 0 ? <ul className="mt-1 list-disc pl-5">{additionalPotentialEntries.map((entry, index) => <li key={`additional-${index}`}>{entry}</li>)}</ul> : <p className="mt-1">{upgradeInfo?.additionalPotential?.description || '에디셔널 잠재능력 없음'}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface OptimizationState {
   cost: number;
   power: number;
@@ -54,6 +111,7 @@ interface AuctionItemFilter {
   minPrice: string;
   maxPrice: string;
   minStarforce: string;
+  maxStarforce: string;
   minPotentialGrade: string;
   minAdditionalPotentialGrade: string;
 }
@@ -77,12 +135,14 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter):
   const minPrice = toNumber(filters.minPrice);
   const maxPrice = toNumber(filters.maxPrice);
   const minStarforce = toNumber(filters.minStarforce);
+  const maxStarforce = toNumber(filters.maxStarforce);
   const minPotentialGrade = toNumber(filters.minPotentialGrade);
   const minAdditionalPotentialGrade = toNumber(filters.minAdditionalPotentialGrade);
 
   if (minPrice > 0 && price < minPrice) return false;
   if (maxPrice > 0 && price > maxPrice) return false;
   if (minStarforce > 0 && starforce < minStarforce) return false;
+  if (maxStarforce > 0 && starforce > maxStarforce) return false;
   if (minPotentialGrade > 0 && potentialGrade < minPotentialGrade) return false;
   if (minAdditionalPotentialGrade > 0 && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
   return true;
@@ -149,6 +209,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     minPrice: '',
     maxPrice: '',
     minStarforce: '17',
+    maxStarforce: '17',
     minPotentialGrade: '3',
     minAdditionalPotentialGrade: '2',
   });
@@ -278,11 +339,13 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                 minPrice: toNumber(auctionFilters.minPrice),
                 maxPrice: toNumber(auctionFilters.maxPrice),
                 minStarforce: toNumber(auctionFilters.minStarforce),
+                maxStarforce: toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade),
                 itemCategory: { itemDetailCategory: 'ARMOR' },
                 enhancementOption: {
                   starforceMin: toNumber(auctionFilters.minStarforce) || undefined,
+                  starforceMax: toNumber(auctionFilters.maxStarforce) || undefined,
                   potentialGrade: toNumber(auctionFilters.minPotentialGrade) || undefined,
                   additionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined,
                 },
@@ -577,6 +640,17 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               />
             </label>
             <label className="block">
+              <span className="text-xs font-semibold text-gray-600">최대 스타포스</span>
+              <input
+                value={auctionFilters.maxStarforce}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, maxStarforce: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
               <span className="text-xs font-semibold text-gray-600">잠재 등급 이상</span>
               <select
                 value={auctionFilters.minPotentialGrade}
@@ -809,7 +883,8 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
                     </div>
                   </div>
 
-                  {optimalSet.selected.topItem?.toolTip && (
+                  {optimalSet.selected.topItem && <AuctionTooltipDetails item={optimalSet.selected.topItem} />}
+                  {false && optimalSet.selected.topItem?.toolTip && (
                     <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3 text-xs text-gray-700">
                       <p className="mb-2 font-bold text-gray-900">🔍 추천 매물 상세</p>
                       <div className="grid gap-1 sm:grid-cols-2">

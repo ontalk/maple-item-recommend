@@ -12,6 +12,7 @@ export interface AuctionSearchFilters {
   minPrice?: number;
   maxPrice?: number;
   minStarforce?: number;
+  maxStarforce?: number;
   minPotentialGrade?: number;
   minAdditionalPotentialGrade?: number;
   itemCategory?: { itemDetailCategory: 'ARMOR' };
@@ -43,14 +44,18 @@ export interface AuctionRawItem {
   toolTip?: {
     starforce?: number;
     stat?: Record<string, number>;
+    baseStat?: Record<string, number>;
+    starforceStat?: Record<string, number>;
+    upgradeStat?: Record<string, number>;
+    exOptionStat?: Record<string, number>;
     categories?: string[];
     setEffects?: string[];
     upgradeInfo?: {
       starForce?: { current?: number; max?: number; description?: string };
       scroll?: { description?: string };
-      exOption?: { description?: string };
-      potential?: { grade?: number; description?: string };
-      additionalPotential?: { grade?: number; description?: string };
+      exOption?: { description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
+      potential?: { grade?: number; description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
+      additionalPotential?: { grade?: number; description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
     };
   };
 }

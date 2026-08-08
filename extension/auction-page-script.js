@@ -74,6 +74,7 @@
         keyword: payload.filters?.keyword || '',
         exactMatch: payload.filters?.exactMatch !== false,
         ...(payload.filters?.itemCategory ? { itemCategory: payload.filters.itemCategory } : {}),
+        ...(payload.filters?.enhancementOption ? { enhancementOption: payload.filters.enhancementOption } : {}),
       };
       const sessionKey = searchSessionKey(payload);
 
