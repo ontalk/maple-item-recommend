@@ -25,7 +25,7 @@
         ...(payload.filters?.itemCategory ? { itemCategory: payload.filters.itemCategory } : {}),
       };
 
-      const response = await fetch(SEARCH_URL, {
+      const makeRequest = (filters) => fetch(SEARCH_URL, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -39,18 +39,28 @@
           accountId: payload.accountId,
           characterId: payload.characterId,
           worldId: payload.worldId,
-          // 공식 옥션 웹 요청과 동일하게 검색어/카테고리만 전송한다.
-          // 별·잠재 필터는 일부 아이템에서 API 400(code 3)을 유발하므로
-          // 검색 결과를 받은 뒤 추천 로직에서 처리한다.
-          filters: requestFilters,
+          filters,
           page: payload.page || 1,
           limit: payload.limit || 20,
           sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
           saveRecentKeyword: false,
         }),
       });
+
+      // 공식 옥션 웹 요청과 동일하게 검색어/카테고리만 전송한다.
+      // 별·잠재 필터는 검색 결과를 받은 뒤 추천 로직에서 처리한다.
+      let response = await makeRequest(requestFilters);
       
-      const text = await response.text();
+      let text = await response.text();
+
+      // 일부 장비는 ARMOR 카테고리와 함께 검색하면 4006을 반환한다.
+      // 해당 아이템에 한해 카테고리를 제거하고 딱 한 번 재시도한다.
+      if (response.status === 400 && text.includes('4006') && requestFilters.itemCategory) {
+        console.warn(`⚠️ ${payload.filters.keyword}: 카테고리 없이 재검색합니다.`);
+        response = await makeRequest({ keyword: requestFilters.keyword });
+        text = await response.text();
+      }
+
       console.log(`📦 옥션 API 응답: ${response.status} (${payload.filters.keyword})`);
       
       if (!response.ok) {
