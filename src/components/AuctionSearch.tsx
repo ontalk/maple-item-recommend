@@ -43,8 +43,16 @@ function median(values: number[]): number | null {
 
 function isFatalAuctionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /426|6013|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch/i.test(message);
+  return /426|6013|429|요청이 너무 많습니다|현재 열린 옥션 탭|Could not establish connection|message channel closed|Failed to fetch/i.test(message);
 }
+
+function isRateLimitedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /429|요청이 너무 많습니다/i.test(message);
+}
+
+const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식'];
+const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
   const [profile, setProfile] = useState<AuctionProfile>({
@@ -58,6 +66,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   const [remaining, setRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
+  const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
+    () => new Set(ALL_SEARCHABLE_EQUIPMENT.map((equipment) => equipment.name))
+  );
 
   const setNumber = (key: keyof AuctionProfile, value: string) => {
     setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
@@ -85,8 +96,14 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
     setError(null);
     setOptimalSets([]);
     
-    // 검색할 부위 목록
-    const partsToSearch = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식'];
+    if (selectedEquipmentNames.size === 0) {
+      setError('검색할 아이템을 하나 이상 선택해주세요.');
+      setIsSearching(false);
+      return;
+    }
+
+    // 선택된 아이템이 있는 부위만 검색
+    const partsToSearch = SEARCH_PARTS;
     const allOptimalSets: OptimalSet[] = [];
 
     try {
@@ -95,7 +112,8 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
       
       for (const part of partsToSearch) {
         console.log(`\n📦 ${part} 부위 검색 중...`);
-        const equipmentOptions = getAllEquipmentOptions(part);
+        const equipmentOptions = getAllEquipmentOptions(part)
+          .filter((equipment) => selectedEquipmentNames.has(equipment.name));
         console.log(`  └─ 검색할 장비 옵션 ${equipmentOptions.length}개:`, equipmentOptions.map(e => e.name));
         
         if (equipmentOptions.length === 0) {
@@ -133,10 +151,10 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           }
           
           try {
-            // 넥슨 Rate Limiting 방지: 각 새로운 장비 검색 사이에 2초 대기
+            // 넥슨 Rate Limiting 방지: 각 새로운 장비 검색 사이에 충분히 대기
             if (totalSearched > 0) {
-              console.log(`⏳ 2초 대기 중... (Rate Limiting 방지)`);
-              await delay(2000);
+              console.log(`⏳ 8초 대기 중... (Rate Limiting 방지)`);
+              await delay(8000);
             }
             
             console.log(`  🔍 ${equipment.name} 검색 시작...`);
@@ -174,8 +192,8 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               if (result.data.hasNext && currentPage < result.data.totalPages) {
                 currentPage++;
                 console.log(`  └─ ${currentPage}페이지 로딩 중...`);
-                // 페이지 넘김은 빠르게 (카운트 소모 없으므로)
-                await delay(300);
+                // 페이지 이동도 단기 요청 제한에 포함될 수 있으므로 대기한다.
+                await delay(1500);
               } else {
                 hasMorePages = false;
                 console.log(`  ✅ ${equipment.name}: 총 ${allItems.length}개 아이템 수집 완료`);
@@ -211,6 +229,9 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           } catch (err) {
             // 로그인 세션이 끊긴 뒤에는 다음 아이템 검색도 모두 실패하므로
             // 추가 요청을 보내지 않고 전체 검색을 즉시 중단한다.
+            if (isRateLimitedError(err)) {
+              throw new Error('옥션 요청이 너무 많아 검색을 중단했습니다(429). 1~2분 기다린 뒤 다시 시작해주세요.');
+            }
             if (isFatalAuctionError(err)) {
               throw new Error('메이플 옥션 세션이 끊겼습니다. 옥션 탭에서 다시 로그인하고 검색을 재시작해주세요.');
             }
@@ -340,6 +361,69 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           </label>
         </div>
 
+        {/* 검색할 아이템 선택 */}
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-gray-700">🔎 검색할 아이템 선택</p>
+              <p className="mt-1 text-xs text-gray-500">
+                선택된 아이템만 옥션에서 검색합니다. 현재 {selectedEquipmentNames.size}/{ALL_SEARCHABLE_EQUIPMENT.length}개 선택
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedEquipmentNames(new Set(ALL_SEARCHABLE_EQUIPMENT.map((equipment) => equipment.name)))}
+                disabled={isSearching}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                전체 선택
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedEquipmentNames(new Set())}
+                disabled={isSearching}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                전체 해제
+              </button>
+            </div>
+          </div>
+
+          <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+            {ALL_SEARCHABLE_EQUIPMENT.map((equipment) => {
+              const isSelected = selectedEquipmentNames.has(equipment.name);
+              return (
+                <label
+                  key={equipment.name}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+                    isSelected
+                      ? 'border-maple-orange bg-orange-50 text-gray-900'
+                      : 'border-gray-200 bg-gray-50 text-gray-400'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => {
+                      setSelectedEquipmentNames((current) => {
+                        const next = new Set(current);
+                        if (next.has(equipment.name)) next.delete(equipment.name);
+                        else next.add(equipment.name);
+                        return next;
+                      });
+                    }}
+                    disabled={isSearching}
+                    className="h-4 w-4 accent-orange-500"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{equipment.name}</span>
+                  <span className="shrink-0 text-[10px] text-gray-400">{equipment.set}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700 mb-4">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <div>
@@ -351,7 +435,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         {/* 메인 검색 버튼 */}
         <button 
           onClick={searchAllEquipmentOptions} 
-          disabled={isSearching || !isProfileValid}
+          disabled={isSearching || !isProfileValid || selectedEquipmentNames.size === 0}
           className="w-full inline-flex items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-maple-orange to-orange-600 px-6 py-4 text-base font-bold text-white shadow-lg transition hover:shadow-xl hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
         >
           {isSearching ? (
@@ -362,7 +446,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           ) : (
             <>
               <Zap className="h-5 w-5" />
-              🚀 모든 장비 자동 검색 & 최적 템셋 추천
+              🚀 선택 아이템 자동 검색 & 최적 템셋 추천
             </>
           )}
         </button>
@@ -370,6 +454,11 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
         {!isProfileValid && !isSearching && (
           <p className="mt-3 text-center text-sm text-gray-500">
             ⬆️ Account ID, Character ID, World ID를 모두 입력해주세요
+          </p>
+        )}
+        {isProfileValid && selectedEquipmentNames.size === 0 && !isSearching && (
+          <p className="mt-3 text-center text-sm text-gray-500">
+            ⬆️ 검색할 아이템을 하나 이상 선택해주세요
           </p>
         )}
       </div>

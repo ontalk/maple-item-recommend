@@ -48,6 +48,18 @@
       if (!response.ok) {
         const preview = text.slice(0, 200);
         console.error(`❌ 응답 실패 (${response.status}):`, preview);
+
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('retry-after');
+          const waitMessage = retryAfter ? `${retryAfter}초 후` : '잠시 후';
+          window.dispatchEvent(new CustomEvent('maple-auction-response', {
+            detail: {
+              requestId,
+              result: { ok: false, error: `옥션 요청이 너무 많습니다(429). ${waitMessage} 다시 시도해주세요.` }
+            }
+          }));
+          return;
+        }
         
         // 응답 전송
         window.dispatchEvent(new CustomEvent('maple-auction-response', {
