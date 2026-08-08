@@ -1,6 +1,17 @@
 // 페이지 컨텍스트에서 실행되는 스크립트 (CSP 제한 없음)
 (function() {
   const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
+  const DEVICE_ID_KEY = 'maple-auction-device-id';
+
+  function getDeviceId() {
+    const stored = window.localStorage.getItem(DEVICE_ID_KEY);
+    if (stored) return stored;
+
+    const deviceId = crypto.randomUUID().replaceAll('-', '');
+    window.localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    return deviceId;
+  }
+
   console.log('🎯 Maple Auction Page Script 활성화됨 (페이지 컨텍스트)');
 
   // Content Script로부터 요청 수신
@@ -12,8 +23,12 @@
       const response = await fetch(SEARCH_URL, {
         method: 'POST',
         credentials: 'include',
-        headers: { 
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
           'Content-Type': 'application/json',
+          'x-client-version': '1.0.1',
+          'x-device-id': getDeviceId(),
+          'x-platform': 'PC_WEB',
         },
         body: JSON.stringify({
           accountId: payload.accountId,

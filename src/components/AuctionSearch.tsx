@@ -50,7 +50,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 108912176,
     characterId: 29662388,
-    worldId: 8,
+    worldId: 5,
   });
   const [jobClass, setJobClass] = useState<string>('해적'); // 직업 선택
   const [isSearching, setIsSearching] = useState(false);
@@ -318,7 +318,7 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
               value={profile.worldId || ''} 
               onChange={(event) => setNumber('worldId', event.target.value)} 
               inputMode="numeric" 
-              placeholder="예: 8 (크로아)" 
+              placeholder="예: 5"
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
               disabled={isSearching}
             />
