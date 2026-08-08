@@ -239,11 +239,11 @@ export const ETERNAL_SET: Record<string, EquipmentOption[]> = {
     { name: '에테르넬 파이렛햇', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
   ],
   상의: [
-    { name: '에테르넬 나이트셔츠', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
-    { name: '에테르넬 메이지셔츠', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
-    { name: '에테르넬 아처셔츠', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
-    { name: '에테르넬 시프셔츠', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
-    { name: '에테르넬 파이렛셔츠', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
+    { name: '에테르넬 나이트코트', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
+    { name: '에테르넬 메이지코트', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
+    { name: '에테르넬 아처코트', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
+    { name: '에테르넬 시프코트', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
+    { name: '에테르넬 파이렛코트', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },
   ],
   하의: [
     { name: '에테르넬 나이트팬츠', set: '에테르넬', minLevel: 250, estimatedCost: 5000000000 },

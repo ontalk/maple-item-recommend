@@ -15,7 +15,10 @@ export interface AuctionSearchFilters {
   maxStarforce?: number;
   minPotentialGrade?: number;
   minAdditionalPotentialGrade?: number;
-  itemCategory?: { itemDetailCategory: 'ARMOR' };
+  itemCategory?: {
+    itemDetailCategory: 'ARMOR' | 'WEAPON';
+    itemSubCategory?: 'SUB_WEAPON';
+  };
   enhancementOption?: {
     starforceMin?: number;
     starforceMax?: number;

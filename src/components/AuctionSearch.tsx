@@ -357,6 +357,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             
             console.log(`  🔍 ${equipment.name} 검색 시작...`);
             const ignoreStarforce = part === '보조무기' && equipment.name !== '아케인셰이드 블레이드';
+            const itemDetailCategory = part === '보조무기' ? 'WEAPON' : 'ARMOR';
             
             // 첫 페이지 검색
             let allItems: AuctionRawItem[] = [];
@@ -376,7 +377,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade),
-                itemCategory: { itemDetailCategory: 'ARMOR' },
+                itemCategory: itemDetailCategory === 'WEAPON'
+                  ? { itemDetailCategory: 'WEAPON', itemSubCategory: 'SUB_WEAPON' }
+                  : { itemDetailCategory: 'ARMOR' },
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
                   starforceMax: ignoreStarforce ? undefined : (toNumber(auctionFilters.maxStarforce) || undefined),
