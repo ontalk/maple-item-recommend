@@ -20,6 +20,11 @@
     console.log('🔍 페이지 컨텍스트에서 옥션 검색 시작:', payload.filters.keyword);
     
     try {
+      const requestFilters = {
+        keyword: payload.filters?.keyword || '',
+        ...(payload.filters?.itemCategory ? { itemCategory: payload.filters.itemCategory } : {}),
+      };
+
       const response = await fetch(SEARCH_URL, {
         method: 'POST',
         credentials: 'include',
@@ -34,7 +39,10 @@
           accountId: payload.accountId,
           characterId: payload.characterId,
           worldId: payload.worldId,
-          filters: payload.filters,
+          // 공식 옥션 웹 요청과 동일하게 검색어/카테고리만 전송한다.
+          // 별·잠재 필터는 일부 아이템에서 API 400(code 3)을 유발하므로
+          // 검색 결과를 받은 뒤 추천 로직에서 처리한다.
+          filters: requestFilters,
           page: payload.page || 1,
           limit: payload.limit || 20,
           sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
