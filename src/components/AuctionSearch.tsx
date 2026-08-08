@@ -205,7 +205,10 @@ function optimizeEquipmentSet(
   let states: OptimizationState[] = [{ cost: 0, power: 0, selections: [] }];
 
   for (const candidates of Object.values(candidatesByPart)) {
-    const nextStates: OptimizationState[] = [];
+    // 반지 4칸/펜던트 2칸은 모두 채워야 하는 필수 슬롯이 아니다.
+    // 같은 장비를 중복 장착할 수 없으므로 후보가 1개뿐인 경우에도
+    // 다음 슬롯을 빈칸으로 건너뛸 수 있어야 한다.
+    const nextStates: OptimizationState[] = [...states];
     for (const state of states) {
       for (const candidate of candidates) {
         const price = candidate.recommendedPrice || 0;
