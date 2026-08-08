@@ -986,6 +986,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                       <p className="text-xs text-gray-500">+{alt.recommendedPower.toLocaleString()}</p>
                             </div>
                           </div>
+                          {(optimalSet.part.startsWith('반지') || optimalSet.part.startsWith('펜던트')) && alt.topItem && (
+                            <AuctionTooltipDetails item={alt.topItem} />
+                          )}
                         </div>
                       ))}
                     </div>
