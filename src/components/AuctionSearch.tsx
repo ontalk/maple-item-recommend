@@ -275,8 +275,8 @@ function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?
 export function AuctionSearch({ benchmark, characterClass }: { benchmark?: BenchmarkComparison; characterClass?: string }) {
   const searchLockRef = useRef(false);
   const [profile, setProfile] = useState<AuctionProfile>({
-    accountId: 108912176,
-    characterId: 29662388,
+    accountId: 0,
+    characterId: 0,
     worldId: 5,
   });
   const [jobClass, setJobClass] = useState<string>('파이렛'); // 옥션 장비 접미사 기준 직업 선택
@@ -657,7 +657,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               value={profile.accountId || ''} 
               onChange={(event) => setNumber('accountId', event.target.value)} 
               inputMode="numeric" 
-              placeholder="예: 108912176" 
+              placeholder="" 
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
               disabled={isSearching}
             />
@@ -668,7 +668,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               value={profile.characterId || ''} 
               onChange={(event) => setNumber('characterId', event.target.value)} 
               inputMode="numeric" 
-              placeholder="예: 29662388" 
+              placeholder="" 
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
               disabled={isSearching}
             />
