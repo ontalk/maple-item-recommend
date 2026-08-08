@@ -50,10 +50,10 @@ function parseMesos(value: unknown): number {
     + Number(unit[5] || 0);
 }
 
-// 현재 메이플 옥션 응답의 price/pricePerItem은 화면에 표시되는 메소의
-// 10배 단위로 전달된다. 예: 5,499,999,999,999 → 549,999,999,999메소.
 function parseAuctionPrice(value: unknown): number {
-  return parseMesos(value) / 10;
+  // API의 price/pricePerItem은 이미 메소 단위다.
+  // 예: 199,999,999,999 → 1999억 9999만 9999메소.
+  return parseMesos(value);
 }
 
 function toOptionalNumber(value: unknown): number | undefined {
