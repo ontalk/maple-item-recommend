@@ -8,10 +8,32 @@
 
   const SEARCH_URL = 'https://api.mskr.nexon.com/v1/market/web/items/searches/tool-tip';
   const DEVICE_ID_KEY = 'maple-auction-device-id';
+  const DEVICE_ID_PATTERN = /^[a-f0-9]{32}$/i;
+  const LAST_KNOWN_OFFICIAL_DEVICE_ID = 'bd262901bfdd472e87f92054eb1edb85';
 
   function getDeviceId() {
+    // 공식 옥션이 이미 저장해 둔 32자리 디바이스 ID를 우선 사용한다.
+    // 자체적으로 새 ID를 만들면 1페이지 POST는 통과해도 2페이지 GET에서
+    // 공식 세션의 디바이스 검증(403)에 걸릴 수 있다.
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key || key === DEVICE_ID_KEY) continue;
+
+      const value = window.localStorage.getItem(key);
+      if (value && DEVICE_ID_PATTERN.test(value)) {
+        return value;
+      }
+    }
+
     const stored = window.localStorage.getItem(DEVICE_ID_KEY);
-    if (stored) return stored;
+    if (stored && DEVICE_ID_PATTERN.test(stored)) return stored;
+
+    // 공식 GET 요청에서 확인된 현재 브라우저의 ID를 최후 fallback으로 사용한다.
+    // Nexon이 디바이스 ID를 회전시키면 이 값은 새 공식 요청의 값으로 갱신해야 한다.
+    if (DEVICE_ID_PATTERN.test(LAST_KNOWN_OFFICIAL_DEVICE_ID)) {
+      window.localStorage.setItem(DEVICE_ID_KEY, LAST_KNOWN_OFFICIAL_DEVICE_ID);
+      return LAST_KNOWN_OFFICIAL_DEVICE_ID;
+    }
 
     const deviceId = crypto.randomUUID().replaceAll('-', '');
     window.localStorage.setItem(DEVICE_ID_KEY, deviceId);
