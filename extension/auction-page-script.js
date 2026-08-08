@@ -53,7 +53,8 @@
           page: payload.page || 1,
           limit: payload.limit || 20,
           sortType: payload.sortType || 'PRICE_PER_ITEM_ASC',
-          saveRecentKeyword: true,
+          // 최초 검색만 새 검색어로 기록한다. 페이지 이동은 같은 검색의 연속 조회다.
+          saveRecentKeyword: Number(payload.page || 1) === 1,
         }),
       });
 
