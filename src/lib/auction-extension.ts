@@ -84,43 +84,40 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
       });
     };
 
-    const cleanup = () => {
-      window.clearTimeout(timeout);
+    const onWindowMessage = (event: MessageEvent) => {
+      if (
+        event.source !== window ||
+        event.origin !== window.location.origin ||
+        event.data?.source !== 'maple-item-recommend-extension' ||
+        event.data?.type !== 'AUCTION_SEARCH_RESULT' ||
+        event.data?.requestId !== requestId
+      ) {
+        return;
+      }
+
+      onRuntimeMessage(event.data as AuctionExtensionResponse);
     };
 
-    // Chrome Extension으로 메시지 전송
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', onWindowMessage);
+    };
+
+    // 웹페이지에서는 Chrome Extension API를 직접 호출할 수 없으므로,
+    // app-bridge.js 콘텐츠 스크립트를 통해 확장 프로그램으로 전달한다.
     try {
-      if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
-        chrome.runtime.sendMessage(
-          {
-            source: 'maple-item-recommend',
-            type: 'AUCTION_SEARCH',
-            requestId,
-            payload: { 
-              ...profile, 
-              filters, 
-              page: filters.page || 1, 
-              limit: filters.limit || 20 
-            },
-          },
-          (response?: unknown) => {
-            if (messageHandled) return;
-            
-            if (chrome.runtime.lastError) {
-              messageHandled = true;
-              cleanup();
-              reject(new Error(`Extension 통신 실패: ${chrome.runtime.lastError.message}`));
-              return;
-            }
-            
-            onRuntimeMessage(response as AuctionExtensionResponse | undefined);
-          }
-        );
-      } else {
-        messageHandled = true;
-        cleanup();
-        reject(new Error('Chrome Extension이 설치되지 않았습니다. Extension을 설치하고 옥션에 로그인해주세요.'));
-      }
+      window.addEventListener('message', onWindowMessage);
+      window.postMessage({
+        source: 'maple-item-recommend',
+        type: 'AUCTION_SEARCH',
+        requestId,
+        payload: {
+          ...profile,
+          filters,
+          page: filters.page || 1,
+          limit: filters.limit || 20,
+        },
+      }, window.location.origin);
     } catch (err) {
       messageHandled = true;
       cleanup();

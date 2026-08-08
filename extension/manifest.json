@@ -22,6 +22,15 @@
       ],
       "js": ["auction-injector.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://maple-item-recommend.vercel.app/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": ["app-bridge.js"],
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
