@@ -196,7 +196,7 @@ function optimizeEquipmentSet(
 const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
-  전사: '파이터',
+  전사: '나이트',
   마법사: '메이지',
   궁수: '아처',
   도적: '시프',
