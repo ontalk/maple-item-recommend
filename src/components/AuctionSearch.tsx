@@ -528,6 +528,70 @@ export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }
           </label>
         </div>
 
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-gray-700">⚙️ 옥션 구매 조건</p>
+            <p className="mt-1 text-xs text-gray-500">검색한 매물 중 아래 조건을 만족하는 장비만 최적 조합에 포함합니다.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">최소 가격</span>
+              <input
+                value={auctionFilters.minPrice}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minPrice: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">최대 가격</span>
+              <input
+                value={auctionFilters.maxPrice}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, maxPrice: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">최소 스타포스</span>
+              <input
+                value={auctionFilters.minStarforce}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minStarforce: event.target.value }))}
+                inputMode="numeric"
+                placeholder="예: 17"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">잠재 등급 이상</span>
+              <select
+                value={auctionFilters.minPotentialGrade}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minPotentialGrade: event.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              >
+                <option value="0">전체</option><option value="1">레어 이상</option><option value="2">에픽 이상</option><option value="3">유니크 이상</option><option value="4">레전드리</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">에디셔널 등급 이상</span>
+              <select
+                value={auctionFilters.minAdditionalPotentialGrade}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minAdditionalPotentialGrade: event.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              >
+                <option value="0">전체</option><option value="1">레어 이상</option><option value="2">에픽 이상</option><option value="3">유니크 이상</option><option value="4">레전드리</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
         {/* 검색할 아이템 선택 */}
         <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
