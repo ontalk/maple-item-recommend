@@ -412,7 +412,11 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             }
             
             console.log(`  🔍 ${equipment.name} 검색 시작...`);
-            const ignoreStarforce = part === '보조무기' && equipment.name !== '아케인셰이드 블레이드';
+            // 엠블렘과 대부분의 보조무기는 스타포스 대상이 아니다.
+            // 전체 검색 조건에 스타포스를 입력해도 해당 부위에는 보내지 않는다.
+            const ignoreStarforce =
+              part === '엠블렘' ||
+              (part === '보조무기' && equipment.name !== '아케인셰이드 블레이드');
             const itemDetailCategory = part === '보조무기'
               ? (AUCTION_SUB_WEAPON_CATEGORY_BY_NAME[equipment.name] || 'WEAPON')
               : 'ARMOR';
@@ -774,6 +778,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
                 disabled={isSearching}
               />
+              <span className="mt-1 block text-[10px] text-gray-400">엠블렘·일부 보조무기에는 자동 적용되지 않습니다.</span>
             </label>
             <label className="block">
               <span className="text-xs font-semibold text-gray-600">최대 스타포스</span>
