@@ -2,8 +2,9 @@
 
 export interface EquipmentOption {
   job?: string;
+  part?: '보조무기' | '엠블렘';
   name: string;
-  set: '보스장신구' | '여명' | '칠흑' | '앱솔랩스' | '아케인셰이드' | '에테르넬';
+  set: '보스장신구' | '여명' | '칠흑' | '광휘의 장신구' | '앱솔랩스' | '아케인셰이드' | '에테르넬';
   minLevel: number;
   estimatedCost: number; // 17성 유니크 기준 예상 가격
 }
@@ -20,11 +21,8 @@ export const BOSS_ACCESSORY: Record<string, EquipmentOption[]> = {
   ],
   귀고리: [
     { name: '데아 시두스 이어링', set: '보스장신구', minLevel: 130, estimatedCost: 500000000 },
-    { name: '지옥의 불꽃', set: '보스장신구', minLevel: 140, estimatedCost: 600000000 },
   ],
   반지: [
-    { name: '실버블라썸 링', set: '보스장신구', minLevel: 110, estimatedCost: 400000000 },
-    { name: '고귀한 이피아의 반지', set: '보스장신구', minLevel: 120, estimatedCost: 500000000 },
   ],
   펜던트: [
     { name: '매커네이터 펜던트', set: '보스장신구', minLevel: 120, estimatedCost: 500000000 },
@@ -38,6 +36,26 @@ export const BOSS_ACCESSORY: Record<string, EquipmentOption[]> = {
   ],
   어깨장식: [
     { name: '로얄 블랙메탈 숄더', set: '보스장신구', minLevel: 150, estimatedCost: 900000000 },
+  ],
+};
+
+// ===== 광휘의 장신구 세트 =====
+const BRILLIANT_ACCESSORY_SET: Record<string, EquipmentOption[]> = {
+  반지: [
+    { name: '근원의 속삭임', set: '광휘의 장신구', minLevel: 200, estimatedCost: 3000000000 },
+    { name: '황홀한 악몽', set: '광휘의 장신구', minLevel: 200, estimatedCost: 3000000000 },
+  ],
+  펜던트: [
+    { name: '죽음의 맹세', set: '광휘의 장신구', minLevel: 200, estimatedCost: 3000000000 },
+  ],
+  훈장: [
+    { name: '불멸의 유산', set: '광휘의 장신구', minLevel: 200, estimatedCost: 3000000000 },
+  ],
+  얼굴장식: [
+    { name: '오만의 원죄', set: '광휘의 장신구', minLevel: 200, estimatedCost: 3000000000 },
+  ],
+  눈장식: [
+    { name: '굶주리는 핏빛 원혼', set: '광휘의 장신구', minLevel: 200, estimatedCost: 3000000000 },
   ],
 };
 
@@ -282,11 +300,11 @@ const SECONDARY_WEAPON_SET: EquipmentOption[] = [
   ['카인', 'D100 커스텀 웨폰 벨트'], ['칼리', '인피니트 헥스시커'], ['호영', '월장석 선추'],
   ['라라', '빛나는 사옥 노리개'], ['렌', '자색 여의보주'], ['키네시스', '체스피스 디 퀸'],
   ['레테', '녹스 마법깃펜'],
-].map(([job, name]): EquipmentOption => ({ job, name, set: '보스장신구', minLevel: 100, estimatedCost: 0 }));
+].map(([job, name]): EquipmentOption => ({ job, part: '보조무기', name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
 
 const EMBLEM_WEAPON_SET: EquipmentOption[] = [
   ['카이저', '드래곤 엠블렘'], ['엔젤릭버스터', '엔젤 엠블렘'],
-].map(([job, name]): EquipmentOption => ({ job, name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
+].map(([job, name]): EquipmentOption => ({ job, part: '엠블렘', name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
 
 export function getAllEquipmentOptions(part: string): EquipmentOption[] {
   const normalizedPart = normalizePart(part);
@@ -294,6 +312,7 @@ export function getAllEquipmentOptions(part: string): EquipmentOption[] {
 
   if (normalizedPart === '보조무기') options.push(...SECONDARY_WEAPON_SET);
   if (normalizedPart === '엠블렘') options.push(...EMBLEM_WEAPON_SET);
+  if (BRILLIANT_ACCESSORY_SET[normalizedPart]) options.push(...BRILLIANT_ACCESSORY_SET[normalizedPart]);
 
   // 보스 장신구
   if (BOSS_ACCESSORY[normalizedPart]) {

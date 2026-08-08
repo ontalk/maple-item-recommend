@@ -194,7 +194,7 @@ function optimizeEquipmentSet(
   };
 }
 
-const SEARCH_PARTS = ['반지', '펜던트', '귀고리', '얼굴장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
+const SEARCH_PARTS = ['반지', '펜던트', '훈장', '귀고리', '얼굴장식', '눈장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
 SEARCH_PARTS.push('보조무기');
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 const EQUIPMENT_SLOT_COUNTS: Record<string, number> = { 반지: 4, 펜던트: 2 };
@@ -784,7 +784,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                     className="h-4 w-4 accent-orange-500"
                   />
                   <span className="min-w-0 flex-1 truncate">{equipment.name}</span>
-                  <span className="shrink-0 text-[10px] text-gray-400">{equipment.set}</span>
+                  <span className="shrink-0 text-[10px] text-gray-400">{equipment.part ?? equipment.set}</span>
                 </label>
               );
             })}
@@ -916,7 +916,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                         />
                       )}
                       <p className="text-sm font-bold text-gray-900">{optimalSet.selected.equipment.name}</p>
-                      <p className="text-xs text-gray-500">{optimalSet.selected.equipment.set} 세트</p>
+                      <p className="text-xs text-gray-500">{optimalSet.selected.equipment.part ?? `${optimalSet.selected.equipment.set} 세트`}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-extrabold text-maple-orange">
@@ -979,7 +979,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-gray-800">{alt.equipment.name}</p>
-                              <p className="text-xs text-gray-500">{alt.equipment.set} · 효율 {alt.efficiency.toFixed(2)}</p>
+                              <p className="text-xs text-gray-500">{alt.equipment.part ?? alt.equipment.set} · 효율 {alt.efficiency.toFixed(2)}</p>
                             </div>
                             <div className="text-right">
                       <p className="text-sm font-bold text-gray-700">{formatMesos(alt.recommendedPrice)}</p>
