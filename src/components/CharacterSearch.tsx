@@ -9,7 +9,7 @@ export default function CharacterSearch({ onSearch }: { onSearch: (name: string)
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (name.trim() && !isLoading) {
+    if (!isLoading) {
       setIsLoading(true);
       onSearch(name.trim());
     }
@@ -29,7 +29,7 @@ export default function CharacterSearch({ onSearch }: { onSearch: (name: string)
         />
         <button
           type="submit"
-          disabled={!name.trim() || isLoading}
+          disabled={isLoading}
           className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-maple-orange text-white rounded-lg font-semibold hover:bg-maple-orange/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
         >
           {isLoading ? (
@@ -43,7 +43,7 @@ export default function CharacterSearch({ onSearch }: { onSearch: (name: string)
         </button>
       </div>
       <p className="text-center text-gray-500 mt-3 text-sm">
-        메이플스토리 캐릭터 닉네임을 입력하면 장비 강화 추천을 받아볼 수 있습니다.
+        닉네임을 입력하면 캐릭터 분석을 함께 진행하고, 비워두면 옥션 템셋 검색부터 시작합니다.
       </p>
     </form>
   );

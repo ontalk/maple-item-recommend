@@ -42,8 +42,12 @@ function median(values: number[]): number | null {
 }
 
 export function AuctionSearch({ benchmark }: { benchmark?: BenchmarkComparison }) {
-  const [profile, setProfile] = useState<AuctionProfile>({ accountId: 0, characterId: 0, worldId: 5 });
-  const [jobClass, setJobClass] = useState<string>('파이렛'); // 직업 선택
+  const [profile, setProfile] = useState<AuctionProfile>({
+    accountId: 108912176,
+    characterId: 29662388,
+    worldId: 8,
+  });
+  const [jobClass, setJobClass] = useState<string>('해적'); // 직업 선택
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);

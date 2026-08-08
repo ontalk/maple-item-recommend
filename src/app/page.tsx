@@ -47,7 +47,7 @@ export default function Home() {
 
   const handleTargetApply = (nextTarget: string) => {
     setTargetPower(nextTarget);
-    if (lastSearchedName) handleSearch(lastSearchedName, nextTarget);
+    handleSearch(lastSearchedName, nextTarget);
   };
 
   return (
@@ -66,8 +66,7 @@ export default function Home() {
             </h1>
             
             <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
-              캐릭터 닉네임만 입력하면 현재 장비 상태를 분석하고, 
-              메소 대비 효율이 가장 좋은 강화 경로를 추천해드립니다.
+              캐릭터 닉네임을 입력하면 현재 장비를 분석하고, 비워두면 옥션 템셋 검색부터 시작할 수 있습니다.
             </p>
 
             {/* 특징 카드들 */}

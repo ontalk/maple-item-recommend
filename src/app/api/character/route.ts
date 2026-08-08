@@ -70,14 +70,27 @@ export async function GET(request: NextRequest) {
     ? Math.round(requestedTarget * 100000000)
     : 200000000;
 
-  if (!characterName) {
-    return NextResponse.json(
-      { error: '캐릭터 닉네임이 필요합니다.' },
-      { status: 400 }
-    );
-  }
-
   try {
+    // 닉네임 없이 시작한 경우에도 옥션 기반 템셋 검색을 사용할 수 있도록
+    // 빈 캐릭터 기준의 템플릿 추천 결과를 반환한다.
+    if (!characterName?.trim()) {
+      const recommendations = generateRecommendations({
+        character_name: '캐릭터 미입력',
+        world_name: '월드 미지정',
+        character_class: '전사',
+        character_level: 0,
+        character_item: [],
+      }, targetCombatPower);
+
+      return NextResponse.json({
+        ...recommendations,
+        character_image: null,
+        character_level: 0,
+        character_class: '닉네임 미입력',
+        combat_power: 0,
+      });
+    }
+
     const character = await getCharacterFullInfo(characterName);
     
     if (!character) {
