@@ -43,6 +43,14 @@ export interface AuctionSearchResult {
   remaining: number;
 }
 
+interface AuctionExtensionResponse {
+  ok?: boolean;
+  error?: string;
+  data?: AuctionSearchResponse;
+  cached?: boolean;
+  remaining?: number;
+}
+
 export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFilters): Promise<AuctionSearchResult> {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('브라우저에서만 경매장을 조회할 수 있습니다.'));
@@ -59,12 +67,12 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
       reject(new Error('경매장 확장 프로그램 응답 시간 초과 (30초). Extension 설치 및 옥션 로그인 상태를 확인해주세요.'));
     }, 30000);
 
-    const onRuntimeMessage = (response: any) => {
+    const onRuntimeMessage = (response?: AuctionExtensionResponse) => {
       if (messageHandled) return;
       messageHandled = true;
       cleanup();
 
-      if (!response?.ok) {
+      if (!response?.ok || !response.data) {
         reject(new Error(response?.error || '경매장 검색에 실패했습니다.'));
         return;
       }
@@ -95,7 +103,7 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
               limit: filters.limit || 20 
             },
           },
-          (response) => {
+          (response?: unknown) => {
             if (messageHandled) return;
             
             if (chrome.runtime.lastError) {
@@ -105,7 +113,7 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
               return;
             }
             
-            onRuntimeMessage(response);
+            onRuntimeMessage(response as AuctionExtensionResponse | undefined);
           }
         );
       } else {
