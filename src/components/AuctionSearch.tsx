@@ -100,6 +100,26 @@ function formatStatEntries(stats?: Record<string, number>): string[] {
     .map(([key, value]) => `${labels[key] ?? key} +${value}`);
 }
 
+function getCuttableCount(item: AuctionRawItem): number | undefined {
+  const tooltip = item.toolTip as typeof item.toolTip & {
+    cuttableCount?: number;
+    cuttableCountRemaining?: number;
+    etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number };
+  } | undefined;
+  const candidates = [
+    item.cuttableCount,
+    item.tradeCountRemaining,
+    item.tradeCount,
+    item.etcOption?.cuttableCount,
+    item.etcOption?.cuttableCountRemaining,
+    tooltip?.cuttableCount,
+    tooltip?.cuttableCountRemaining,
+    tooltip?.etcOption?.cuttableCount,
+    tooltip?.etcOption?.cuttableCountRemaining,
+  ];
+  return candidates.find((value) => value !== undefined && Number.isFinite(Number(value)));
+}
+
 function AuctionTooltipDetails({ item }: { item: AuctionRawItem }) {
   const tooltip = item.toolTip;
   if (!tooltip) return null;
@@ -109,12 +129,16 @@ function AuctionTooltipDetails({ item }: { item: AuctionRawItem }) {
   const additionalPotentialEntries = formatDetailEntries(upgradeInfo?.additionalPotential?.entries);
   const exOptionStats = formatStatEntries(tooltip.exOptionStat);
   const starForce = upgradeInfo?.starForce;
+  const cuttableCount = getCuttableCount(item);
 
   return (
     <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3 text-xs text-gray-700">
       <p className="mb-2 font-bold text-gray-900">🔍 추천 매물 상세</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <p>⭐ 스타포스: {starForce?.current ?? tooltip.starforce ?? item.starforce ?? 0}성{starForce?.max !== undefined ? ` (최대 ${starForce.max}성)` : ''}</p>
+        <div>
+          <p>⭐ 스타포스: {starForce?.current ?? tooltip.starforce ?? item.starforce ?? 0}성{starForce?.max !== undefined ? ` (최대 ${starForce.max}성)` : ''}</p>
+          <p>✂️ 가위 사용 가능: {cuttableCount !== undefined ? `${cuttableCount}회` : '정보 없음'}</p>
+        </div>
         <p>📜 주문서: {upgradeInfo?.scroll?.description || '정보 없음'}</p>
         <div>
           <p className="font-semibold text-gray-800">🔥 추옵</p>
@@ -262,7 +286,7 @@ function optimizeEquipmentSet(
   };
 }
 
-const SEARCH_PARTS = ['반지', '펜던트', '훈장', '귀고리', '얼굴장식', '눈장식', '벨트', '포켓', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
+const SEARCH_PARTS = ['반지', '펜던트', '훈장', '귀고리', '얼굴장식', '눈장식', '벨트', '포켓', '기계 심장', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
 SEARCH_PARTS.push('보조무기');
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 const EQUIPMENT_SLOT_COUNTS: Record<string, number> = { 반지: 4, 펜던트: 2 };
@@ -444,6 +468,9 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
               part === '포켓' ||
               (part === '보조무기' && equipment.name !== '아케인셰이드 블레이드');
             const ignoreEnhancementGrades = part === '훈장' || part === '포켓';
+            // 엠블렘/훈장/포켓/기계 심장은 교환불가 슬롯이라 가위 사용 횟수 조건이 의미 없다.
+            // 해당 부위에 etcOption을 보내면 넥슨 API가 매물을 0개로 반환할 수 있다.
+            const ignoreCuttableCount = part === '엠블렘' || part === '훈장' || part === '포켓' || part === '기계 심장';
             const itemDetailCategory = part === '보조무기'
               ? (AUCTION_SUB_WEAPON_CATEGORY_BY_NAME[equipment.name] || 'WEAPON')
               : 'ARMOR';
@@ -469,8 +496,8 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
                 maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minAdditionalPotentialGrade),
-                cuttableCountMin: toNumber(auctionFilters.minCuttableCount),
-                cuttableCountMax: toNumber(auctionFilters.maxCuttableCount),
+                cuttableCountMin: ignoreCuttableCount ? undefined : toNumber(auctionFilters.minCuttableCount),
+                cuttableCountMax: ignoreCuttableCount ? undefined : toNumber(auctionFilters.maxCuttableCount),
                 itemCategory,
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
@@ -478,7 +505,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
                   potentialGrade: ignoreEnhancementGrades ? undefined : (toNumber(auctionFilters.minPotentialGrade) || undefined),
                   additionalPotentialGrade: ignoreEnhancementGrades ? undefined : (toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined),
                 },
-                etcOption: {
+                etcOption: ignoreCuttableCount ? undefined : {
                   cuttableCountMin: toNumber(auctionFilters.minCuttableCount) || undefined,
                   cuttableCountMax: toNumber(auctionFilters.maxCuttableCount) || undefined,
                 },

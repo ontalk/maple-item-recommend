@@ -49,6 +49,9 @@ export interface AuctionRawItem {
   starforce: number;
   attackPowerDiff?: number;
   itemIcon?: { fallBackUrl?: string };
+  cuttableCount?: number;
+  tradeCount?: number;
+  tradeCountRemaining?: number;
   toolTip?: {
     starforce?: number;
     stat?: Record<string, number>;
@@ -67,8 +70,8 @@ export interface AuctionRawItem {
     };
   };
   etcOption?: {
-    cuttableCountMin?: number;
-    cuttableCountMax?: number;
+    cuttableCount?: number;
+    cuttableCountRemaining?: number;
   };
 }
 

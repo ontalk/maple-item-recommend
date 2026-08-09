@@ -105,6 +105,9 @@ export const BLACK_SET: Record<string, EquipmentOption[]> = {
   벨트: [
     { name: '몽환의 벨트', set: '칠흑', minLevel: 160, estimatedCost: 1700000000 },
   ],
+  '기계 심장': [
+    { name: '컴플리트 언더컨트롤', set: '칠흑', minLevel: 160, estimatedCost: 3000000000 },
+  ],
 };
 
 // ===== 엠블렘 =====
