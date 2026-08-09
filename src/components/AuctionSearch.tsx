@@ -117,7 +117,17 @@ function getCuttableCount(item: AuctionRawItem): number | undefined {
     tooltip?.etcOption?.cuttableCount,
     tooltip?.etcOption?.cuttableCountRemaining,
   ];
-  return candidates.find((value) => value !== undefined && Number.isFinite(Number(value)));
+  const numericCount = candidates.find((value) => value !== undefined && Number.isFinite(Number(value)));
+  if (numericCount !== undefined) return Number(numericCount);
+
+  // 넥슨 응답은 가횟을 숫자 필드가 아니라 tradeDesc에 표시하는 경우가 있다.
+  // 예: "(가위 사용 잔여 횟수 : 5 / 5)"
+  const tradeDescriptions = [...(item.tradeDesc ?? []), ...(tooltip?.tradeDesc ?? [])];
+  for (const description of tradeDescriptions) {
+    const match = description.match(/가위\s*사용(?:\s*잔여)?\s*횟수\s*:\s*(\d+)\s*\/\s*(\d+)/);
+    if (match) return Number(match[1]);
+  }
+  return undefined;
 }
 
 function AuctionTooltipDetails({ item }: { item: AuctionRawItem }) {
@@ -209,14 +219,7 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
       rawItem.additionalPotentialGrade ??
       rawItem.additionalPotential?.grade,
   );
-  const cuttableCount = toOptionalNumber(
-    rawItem.cuttableCount ??
-      rawItem.etcOption?.cuttableCount ??
-      rawItem.etcOption?.cuttableCountRemaining ??
-      (tooltip as typeof tooltip & { cuttableCount?: number; etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number } } | undefined)?.cuttableCount ??
-      (tooltip as typeof tooltip & { cuttableCount?: number; etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number } } | undefined)?.etcOption?.cuttableCount ??
-      (tooltip as typeof tooltip & { cuttableCount?: number; etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number } } | undefined)?.etcOption?.cuttableCountRemaining,
-  );
+  const cuttableCount = getCuttableCount(item);
   const minPrice = toNumber(filters.minPrice);
   const maxPrice = toNumber(filters.maxPrice);
   const minStarforce = toNumber(filters.minStarforce);

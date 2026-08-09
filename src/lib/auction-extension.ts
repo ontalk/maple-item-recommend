@@ -52,6 +52,7 @@ export interface AuctionRawItem {
   cuttableCount?: number;
   tradeCount?: number;
   tradeCountRemaining?: number;
+  tradeDesc?: string[];
   toolTip?: {
     starforce?: number;
     stat?: Record<string, number>;
@@ -68,6 +69,7 @@ export interface AuctionRawItem {
       potential?: { grade?: number; description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
       additionalPotential?: { grade?: number; description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
     };
+    tradeDesc?: string[];
   };
   etcOption?: {
     cuttableCount?: number;
