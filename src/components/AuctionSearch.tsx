@@ -288,7 +288,7 @@ function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?
   return !isJobSpecific || equipment.name.includes(JOB_SUFFIX_BY_CLASS[jobClass] || '');
 }
 
-export function AuctionSearch({ benchmark, characterClass }: { benchmark?: BenchmarkComparison; characterClass?: string }) {
+export function AuctionSearch({ benchmark, characterClass, currentCombatPower }: { benchmark?: BenchmarkComparison; characterClass?: string; currentCombatPower?: number | string }) {
   const searchLockRef = useRef(false);
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 0,
@@ -373,7 +373,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
     const allOptimalSets: OptimalSet[] = [];
     const candidatesByPart: Record<string, EquipmentSearchResult[]> = {};
     const budget = Math.max(0, toNumber(budgetEok)) * 100000000;
-    const targetPower = Math.max(0, toNumber(targetPowerEok)) * 100000000;
+    const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
+    const currentPower = parseMesos(currentCombatPower);
+    const targetPower = Math.max(0, targetPowerTotal - currentPower);
 
     if (budget <= 0) {
       setError('사용할 메소를 0보다 크게 입력해주세요. 단위는 억 메소입니다.');
@@ -643,7 +645,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
   const isProfileValid = Number.isInteger(profile.accountId) && Number.isInteger(profile.characterId) && Number.isInteger(profile.worldId) && profile.accountId > 0 && profile.characterId > 0 && profile.worldId > 0;
   const selectedCost = optimalSets.reduce((sum, set) => sum + (set.selected.recommendedPrice || 0), 0);
   const selectedPower = optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
-  const targetPower = Math.max(0, toNumber(targetPowerEok)) * 100000000;
+  const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
+  const currentPower = parseMesos(currentCombatPower);
+  const targetPower = Math.max(0, targetPowerTotal - currentPower);
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
@@ -761,7 +765,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             <span className="mt-1 block text-xs text-gray-500">예: 20 입력 시 20억 메소까지 사용</span>
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-gray-600 mb-1 block">🎯 목표 전투력 증가 (억)</span>
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">🎯 목표 전투력 (억)</span>
             <input
               value={targetPowerEok}
               onChange={(event) => setTargetPowerEok(event.target.value)}
@@ -770,7 +774,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400"
               disabled={isSearching}
             />
-            <span className="mt-1 block text-xs text-gray-500">달성 가능하면 최소 비용 조합을 우선 추천</span>
+            <span className="mt-1 block text-xs text-gray-500">현재 전투력 {formatMesos(currentPower)} 기준으로 필요한 증가량을 계산</span>
           </label>
         </div>
 

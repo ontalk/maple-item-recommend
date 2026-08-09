@@ -81,6 +81,7 @@ export default function Home() {
           <AuctionSearch
             benchmark={searchData.data.benchmark}
             characterClass={searchData.data?.basic?.character_class}
+            currentCombatPower={searchData.data?.combat_power}
           />
         </div>
       </section>}
