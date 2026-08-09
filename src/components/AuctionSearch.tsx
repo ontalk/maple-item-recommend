@@ -146,6 +146,8 @@ interface AuctionItemFilter {
   maxStarforce: string;
   minPotentialGrade: string;
   minAdditionalPotentialGrade: string;
+  minCuttableCount: string;
+  maxCuttableCount: string;
 }
 
 function isFatalAuctionError(error: unknown): boolean {
@@ -169,6 +171,8 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
     additionalPotentialGrade?: number;
     potential?: { grade?: number };
     additionalPotential?: { grade?: number };
+    cuttableCount?: number;
+    etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number };
   };
   const starforce = toOptionalNumber(
     tooltip?.upgradeInfo?.starForce?.current ?? tooltip?.starforce ?? item.starforce,
@@ -181,19 +185,31 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
       rawItem.additionalPotentialGrade ??
       rawItem.additionalPotential?.grade,
   );
+  const cuttableCount = toOptionalNumber(
+    rawItem.cuttableCount ??
+      rawItem.etcOption?.cuttableCount ??
+      rawItem.etcOption?.cuttableCountRemaining ??
+      (tooltip as typeof tooltip & { cuttableCount?: number; etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number } } | undefined)?.cuttableCount ??
+      (tooltip as typeof tooltip & { cuttableCount?: number; etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number } } | undefined)?.etcOption?.cuttableCount ??
+      (tooltip as typeof tooltip & { cuttableCount?: number; etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number } } | undefined)?.etcOption?.cuttableCountRemaining,
+  );
   const minPrice = toNumber(filters.minPrice);
   const maxPrice = toNumber(filters.maxPrice);
   const minStarforce = toNumber(filters.minStarforce);
   const maxStarforce = toNumber(filters.maxStarforce);
   const minPotentialGrade = toNumber(filters.minPotentialGrade);
   const minAdditionalPotentialGrade = toNumber(filters.minAdditionalPotentialGrade);
+  const minCuttableCount = toNumber(filters.minCuttableCount);
+  const maxCuttableCount = toNumber(filters.maxCuttableCount);
 
   if (minPrice > 0 && price < minPrice) return false;
   if (maxPrice > 0 && price > maxPrice) return false;
   if (!ignoreStarforce && minStarforce > 0 && starforce !== undefined && starforce < minStarforce) return false;
   if (!ignoreStarforce && maxStarforce > 0 && starforce !== undefined && starforce > maxStarforce) return false;
    if (!ignoreEnhancementGrades && minPotentialGrade > 0 && potentialGrade !== undefined && potentialGrade < minPotentialGrade) return false;
-   if (!ignoreEnhancementGrades && minAdditionalPotentialGrade > 0 && additionalPotentialGrade !== undefined && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
+  if (!ignoreEnhancementGrades && minAdditionalPotentialGrade > 0 && additionalPotentialGrade !== undefined && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
+  if (minCuttableCount > 0 && cuttableCount !== undefined && cuttableCount < minCuttableCount) return false;
+  if (maxCuttableCount > 0 && cuttableCount !== undefined && cuttableCount > maxCuttableCount) return false;
   return true;
 }
 
@@ -289,6 +305,8 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
     maxStarforce: '17',
     minPotentialGrade: '3',
     minAdditionalPotentialGrade: '2',
+    minCuttableCount: '',
+    maxCuttableCount: '',
   });
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
@@ -449,12 +467,18 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minAdditionalPotentialGrade),
+                cuttableCountMin: toNumber(auctionFilters.minCuttableCount),
+                cuttableCountMax: toNumber(auctionFilters.maxCuttableCount),
                 itemCategory,
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
                   starforceMax: ignoreStarforce ? undefined : (toNumber(auctionFilters.maxStarforce) || undefined),
                   potentialGrade: ignoreEnhancementGrades ? undefined : (toNumber(auctionFilters.minPotentialGrade) || undefined),
                   additionalPotentialGrade: ignoreEnhancementGrades ? undefined : (toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined),
+                },
+                etcOption: {
+                  cuttableCountMin: toNumber(auctionFilters.minCuttableCount) || undefined,
+                  cuttableCountMax: toNumber(auctionFilters.maxCuttableCount) || undefined,
                 },
               });
 
@@ -802,26 +826,48 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-gray-600">잠재 등급 이상</span>
+              <span className="text-xs font-semibold text-gray-600">잠재 등급</span>
               <select
                 value={auctionFilters.minPotentialGrade}
                 onChange={(event) => setAuctionFilters((current) => ({ ...current, minPotentialGrade: event.target.value }))}
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
                 disabled={isSearching}
               >
-                <option value="0">전체</option><option value="1">레어 이상</option><option value="2">에픽 이상</option><option value="3">유니크 이상</option><option value="4">레전드리</option>
+                <option value="0">전체</option><option value="1">레어</option><option value="2">에픽</option><option value="3">유니크</option><option value="4">레전드리</option>
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-gray-600">에디셔널 등급 이상</span>
+              <span className="text-xs font-semibold text-gray-600">에디셔널 등급</span>
               <select
                 value={auctionFilters.minAdditionalPotentialGrade}
                 onChange={(event) => setAuctionFilters((current) => ({ ...current, minAdditionalPotentialGrade: event.target.value }))}
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
                 disabled={isSearching}
               >
-                <option value="0">전체</option><option value="1">레어 이상</option><option value="2">에픽 이상</option><option value="3">유니크 이상</option><option value="4">레전드리</option>
+                <option value="0">전체</option><option value="1">레어</option><option value="2">에픽</option><option value="3">유니크</option><option value="4">레전드리</option>
               </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">가위 사용 가능 횟수 최소</span>
+              <input
+                value={auctionFilters.minCuttableCount}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minCuttableCount: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">가위 사용 가능 횟수 최대</span>
+              <input
+                value={auctionFilters.maxCuttableCount}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, maxCuttableCount: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              />
             </label>
           </div>
         </div>

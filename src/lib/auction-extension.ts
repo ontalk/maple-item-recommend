@@ -15,6 +15,8 @@ export interface AuctionSearchFilters {
   maxStarforce?: number;
   minPotentialGrade?: number;
   minAdditionalPotentialGrade?: number;
+  cuttableCountMin?: number;
+  cuttableCountMax?: number;
   itemCategory?: {
     itemDetailCategory: string;
   };
@@ -59,6 +61,10 @@ export interface AuctionRawItem {
       potential?: { grade?: number; description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
       additionalPotential?: { grade?: number; description?: string; entries?: Array<string | { text?: string; description?: string; value?: string | number }> };
     };
+  };
+  etcOption?: {
+    cuttableCountMin?: number;
+    cuttableCountMax?: number;
   };
 }
 

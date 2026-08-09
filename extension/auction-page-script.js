@@ -75,6 +75,7 @@
         exactMatch: payload.filters?.exactMatch !== false,
         ...(payload.filters?.itemCategory ? { itemCategory: payload.filters.itemCategory } : {}),
         ...(payload.filters?.enhancementOption ? { enhancementOption: payload.filters.enhancementOption } : {}),
+        ...(payload.filters?.etcOption ? { etcOption: payload.filters.etcOption } : {}),
       };
       const sessionKey = searchSessionKey(payload);
 
