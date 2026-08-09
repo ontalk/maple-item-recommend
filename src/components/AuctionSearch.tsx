@@ -246,7 +246,7 @@ function optimizeEquipmentSet(
   };
 }
 
-const SEARCH_PARTS = ['반지', '펜던트', '훈장', '귀고리', '얼굴장식', '눈장식', '벨트', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
+const SEARCH_PARTS = ['반지', '펜던트', '훈장', '귀고리', '얼굴장식', '눈장식', '벨트', '포켓', '모자', '상의', '하의', '장갑', '신발', '망토', '어깨장식', '엠블렘'];
 SEARCH_PARTS.push('보조무기');
 const ALL_SEARCHABLE_EQUIPMENT = SEARCH_PARTS.flatMap((part) => getAllEquipmentOptions(part));
 const EQUIPMENT_SLOT_COUNTS: Record<string, number> = { 반지: 4, 펜던트: 2 };
@@ -420,7 +420,9 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             // 전체 검색 조건에 스타포스를 입력해도 해당 부위에는 보내지 않는다.
             const ignoreStarforce =
               part === '엠블렘' ||
+              part === '포켓' ||
               (part === '보조무기' && equipment.name !== '아케인셰이드 블레이드');
+            const ignoreEnhancementGrades = part === '포켓';
             const itemDetailCategory = part === '보조무기'
               ? (AUCTION_SUB_WEAPON_CATEGORY_BY_NAME[equipment.name] || 'WEAPON')
               : 'ARMOR';
@@ -441,14 +443,14 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 maxPrice: toNumber(auctionFilters.maxPrice),
                 minStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.minStarforce),
                 maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
-                minPotentialGrade: toNumber(auctionFilters.minPotentialGrade),
-                minAdditionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade),
+                minPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minPotentialGrade),
+                minAdditionalPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minAdditionalPotentialGrade),
                 itemCategory: { itemDetailCategory },
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
                   starforceMax: ignoreStarforce ? undefined : (toNumber(auctionFilters.maxStarforce) || undefined),
-                  potentialGrade: toNumber(auctionFilters.minPotentialGrade) || undefined,
-                  additionalPotentialGrade: toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined,
+                  potentialGrade: ignoreEnhancementGrades ? undefined : (toNumber(auctionFilters.minPotentialGrade) || undefined),
+                  additionalPotentialGrade: ignoreEnhancementGrades ? undefined : (toNumber(auctionFilters.minAdditionalPotentialGrade) || undefined),
                 },
               });
 
