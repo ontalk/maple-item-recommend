@@ -301,10 +301,10 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
   const [auctionFilters, setAuctionFilters] = useState<AuctionItemFilter>({
     minPrice: '',
     maxPrice: '',
-    minStarforce: '17',
-    maxStarforce: '17',
-    minPotentialGrade: '3',
-    minAdditionalPotentialGrade: '2',
+    minStarforce: '',
+    maxStarforce: '',
+    minPotentialGrade: '0',
+    minAdditionalPotentialGrade: '0',
     minCuttableCount: '',
     maxCuttableCount: '',
   });
