@@ -297,6 +297,7 @@ export const ETERNAL_SET: Record<string, EquipmentOption[]> = {
 // ===== 부위별 모든 장비 통합 =====
 const SECONDARY_WEAPON_SET: EquipmentOption[] = [
   ['캐논슈터', '봄버드 센터파이어'],
+  ['레테', '녹스 마법깃펜'],
 ].map(([job, name]): EquipmentOption => ({ job, part: '보조무기', name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
 
 // 직업 전용 엠블렘은 경매장 검색 대상에서 제외한다.

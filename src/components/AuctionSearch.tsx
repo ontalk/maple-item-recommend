@@ -320,6 +320,7 @@ const JOB_SUFFIX_BY_CLASS: Record<string, string> = {
 
 const AUCTION_SUB_WEAPON_CATEGORY_BY_NAME: Record<string, string> = {
   '봄버드 센터파이어': 'WEAPON_SUB_CANNON_GUN_POWDER',
+  '녹스 마법깃펜': 'WEAPON_SUB_DEMON_MAGE',
 };
 
 function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?: string): boolean {
