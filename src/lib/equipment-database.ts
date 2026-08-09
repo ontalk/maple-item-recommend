@@ -34,9 +34,7 @@ export const BOSS_ACCESSORY: Record<string, EquipmentOption[]> = {
     { name: '골든 클로버 벨트', set: '보스장신구', minLevel: 140, estimatedCost: 800000000 },
     { name: '분노한 자쿰의 벨트', set: '보스장신구', minLevel: 110, estimatedCost: 500000000 },
   ],
-  어깨장식: [
-    { name: '로얄 블랙메탈 숄더', set: '보스장신구', minLevel: 150, estimatedCost: 900000000 },
-  ],
+  어깨장식: [],
 };
 
 // ===== 광휘의 장신구 세트 =====
@@ -298,9 +296,8 @@ const SECONDARY_WEAPON_SET: EquipmentOption[] = [
   ['캐논슈터', '봄버드 센터파이어'],
 ].map(([job, name]): EquipmentOption => ({ job, part: '보조무기', name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
 
-const EMBLEM_WEAPON_SET: EquipmentOption[] = [
-  ['카이저', '드래곤 엠블렘'], ['엔젤릭버스터', '엔젤 엠블렘'],
-].map(([job, name]): EquipmentOption => ({ job, part: '엠블렘', name, set: '칠흑', minLevel: 100, estimatedCost: 0 }));
+// 직업 전용 엠블렘은 경매장 검색 대상에서 제외한다.
+const EMBLEM_WEAPON_SET: EquipmentOption[] = [];
 
 export function getAllEquipmentOptions(part: string): EquipmentOption[] {
   const normalizedPart = normalizePart(part);

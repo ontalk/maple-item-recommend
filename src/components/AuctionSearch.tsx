@@ -158,7 +158,7 @@ function isRateLimitedError(error: unknown): boolean {
   return /429|요청이 너무 많습니다/i.test(message);
 }
 
-function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, ignoreStarforce = false): boolean {
+function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, ignoreStarforce = false, ignoreEnhancementGrades = false): boolean {
   const price = parseAuctionPrice(item.pricePerItem || item.price);
   const tooltip = item.toolTip;
   // enhancementOption은 옥션 API에 이미 전달된다. 응답 툴팁에 등급 필드가
@@ -192,8 +192,8 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
   if (maxPrice > 0 && price > maxPrice) return false;
   if (!ignoreStarforce && minStarforce > 0 && starforce !== undefined && starforce < minStarforce) return false;
   if (!ignoreStarforce && maxStarforce > 0 && starforce !== undefined && starforce > maxStarforce) return false;
-  if (minPotentialGrade > 0 && potentialGrade !== undefined && potentialGrade < minPotentialGrade) return false;
-  if (minAdditionalPotentialGrade > 0 && additionalPotentialGrade !== undefined && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
+   if (!ignoreEnhancementGrades && minPotentialGrade > 0 && potentialGrade !== undefined && potentialGrade < minPotentialGrade) return false;
+   if (!ignoreEnhancementGrades && minAdditionalPotentialGrade > 0 && additionalPotentialGrade !== undefined && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
   return true;
 }
 
@@ -420,12 +420,16 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
             // 전체 검색 조건에 스타포스를 입력해도 해당 부위에는 보내지 않는다.
             const ignoreStarforce =
               part === '엠블렘' ||
+              part === '훈장' ||
               part === '포켓' ||
               (part === '보조무기' && equipment.name !== '아케인셰이드 블레이드');
-            const ignoreEnhancementGrades = part === '포켓';
+            const ignoreEnhancementGrades = part === '훈장' || part === '포켓';
             const itemDetailCategory = part === '보조무기'
               ? (AUCTION_SUB_WEAPON_CATEGORY_BY_NAME[equipment.name] || 'WEAPON')
               : 'ARMOR';
+            // 훈장은 일반 방어구 카테고리로 조회하면 넥슨 API에서 누락될 수 있다.
+            // 카테고리 제한 없이 정확한 아이템명으로 검색한다.
+            const itemCategory = part === '훈장' ? undefined : { itemDetailCategory };
             
             // 첫 페이지 검색
             let allItems: AuctionRawItem[] = [];
@@ -445,7 +449,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
                 maxStarforce: ignoreStarforce ? undefined : toNumber(auctionFilters.maxStarforce),
                 minPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minPotentialGrade),
                 minAdditionalPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minAdditionalPotentialGrade),
-                itemCategory: { itemDetailCategory },
+                itemCategory,
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
                   starforceMax: ignoreStarforce ? undefined : (toNumber(auctionFilters.maxStarforce) || undefined),
@@ -477,7 +481,7 @@ export function AuctionSearch({ benchmark, characterClass }: { benchmark?: Bench
               }
             }
             
-            const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters, ignoreStarforce));
+            const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters, ignoreStarforce, ignoreEnhancementGrades));
 
             if (filteredItems.length === 0) {
               console.log(`  └─ ⚠️ ${equipment.name}: 조건 통과 매물 없음 (수집 ${allItems.length}개)`);
