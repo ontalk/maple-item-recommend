@@ -244,6 +244,7 @@ function optimizeEquipmentSet(
   candidatesByPart: Record<string, EquipmentSearchResult[]>,
   budget: number,
   targetPower: number,
+  preferTargetPower: boolean,
 ): OptimizationState {
   let states: OptimizationState[] = [{ cost: 0, power: 0, selections: [] }];
 
@@ -267,6 +268,12 @@ function optimizeEquipmentSet(
 
     states = nextStates
       .sort((left, right) => {
+        if (preferTargetPower && targetPower > 0) {
+          const leftGap = Math.abs(targetPower - left.power);
+          const rightGap = Math.abs(targetPower - right.power);
+          return leftGap - rightGap ||
+            (right.power / Math.max(right.cost, 1)) - (left.power / Math.max(left.cost, 1));
+        }
         const leftScore = targetPower > 0 && left.power >= targetPower
           ? 1_000_000_000_000 - left.cost
           : left.power / Math.max(left.cost, 1);
@@ -276,6 +283,16 @@ function optimizeEquipmentSet(
         return rightScore - leftScore;
       })
       .slice(0, 3000);
+  }
+
+  if (preferTargetPower && targetPower > 0) {
+    return states.sort((left, right) => {
+      const leftGap = Math.abs(targetPower - left.power);
+      const rightGap = Math.abs(targetPower - right.power);
+      return leftGap - rightGap ||
+        (right.power / Math.max(right.cost, 1)) - (left.power / Math.max(left.cost, 1)) ||
+        left.cost - right.cost;
+    })[0] || { cost: 0, power: 0, selections: [] };
   }
 
   const reachedTarget = states.filter((state) => targetPower > 0 && state.power >= targetPower);
@@ -325,6 +342,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
   const [jobClass, setJobClass] = useState<string>('파이렛'); // 옥션 장비 접미사 기준 직업 선택
   const [budgetEok, setBudgetEok] = useState('20');
   const [targetPowerEok, setTargetPowerEok] = useState('2');
+  const [preferTargetPower, setPreferTargetPower] = useState(false);
   const [auctionFilters, setAuctionFilters] = useState<AuctionItemFilter>({
     minPrice: '',
     maxPrice: '',
@@ -635,7 +653,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
         }
       });
 
-      const optimized = optimizeEquipmentSet(optimizationGroups, budget, targetPower);
+      const optimized = optimizeEquipmentSet(optimizationGroups, budget, targetPower, preferTargetPower);
       const usedSlots: Record<string, number> = {};
       const optimizedSets = optimized.selections.map((selected) => {
         const basePart = selected.part.replace(/-\d+$/, '');
@@ -805,6 +823,16 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
               disabled={isSearching}
             />
             <span className="mt-1 block text-xs text-gray-500">현재 전투력 {formatMesos(currentPower)} 기준으로 필요한 증가량을 계산</span>
+            <label className="mt-2 flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={preferTargetPower}
+                onChange={(event) => setPreferTargetPower(event.target.checked)}
+                disabled={isSearching}
+                className="h-4 w-4 accent-maple-orange"
+              />
+              목표 전투력에 가까운 조합 우선 추천
+            </label>
           </label>
         </div>
 
