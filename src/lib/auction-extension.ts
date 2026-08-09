@@ -26,6 +26,10 @@ export interface AuctionSearchFilters {
     potentialGrade?: number;
     additionalPotentialGrade?: number;
   };
+  etcOption?: {
+    cuttableCountMin?: number;
+    cuttableCountMax?: number;
+  };
 }
 
 export interface AuctionSearchResponse {
