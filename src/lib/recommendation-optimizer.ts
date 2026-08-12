@@ -45,14 +45,9 @@ function applyReplacementState(current: EquipmentState, replacement: EquipmentSt
 }
 
 function powerFor(current: EquipmentState, selections: OptimizerCandidate[]): number {
-  const replacements = selections.map((candidate) => candidate.item);
-  const nextItems = replacements.reduce((items, replacement) => items.filter((item) => item.slot !== replacement.slot).concat(replacement), current.items);
-  const currentFormula = calculateCombatPower(current) - calculateSetEffects(current.items);
-  const nextFormula = calculateCombatPowerAfterReplacements(current, replacements) - calculateSetEffects(nextItems);
-  const equipmentDelta = current.officialCombatPower !== undefined && currentFormula > 0
-    ? current.officialCombatPower * ((nextFormula / currentFormula) - 1)
-    : nextFormula - currentFormula;
-  return equipmentDelta + calculateSetEffects(nextItems) - calculateSetEffects(current.items);
+  // 경매장 후보에는 현재 캐릭터 기준 attackPowerDiff가 들어온다.
+  // 이 값을 다시 공식으로 환산하면 인게임/옥션 값과 달라지므로 그대로 사용한다.
+  return selections.reduce((sum, candidate) => sum + candidate.power, 0);
 }
 
 function better(current: EquipmentState, left: OptimizerCandidate[], right: OptimizerCandidate[], target: number, preferTarget: boolean): boolean {
@@ -88,7 +83,7 @@ export function optimizeRecommendations(current: EquipmentState, candidates: Opt
   const remaining = [...selections];
   const purchaseOrder: PurchaseStep[] = [];
   while (remaining.length) {
-    const ranked = remaining.map((candidate) => ({ candidate, delta: calculateCombatPowerDelta(state, candidate.item).totalDelta }))
+    const ranked = remaining.map((candidate) => ({ candidate, delta: candidate.power }))
       .sort((a, b) => (b.delta / Math.max(b.candidate.price, 1)) - (a.delta / Math.max(a.candidate.price, 1)));
     const { candidate, delta } = ranked[0];
     remaining.splice(remaining.indexOf(candidate), 1);

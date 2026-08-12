@@ -614,7 +614,13 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
 
             const topItem = valueListing?.item || filteredItems[0];
             const replacement = auctionCandidateToStateItem(topItem, part, part);
-            const powerDelta = calculateCombatPowerDelta(currentState, replacement).totalDelta;
+            // 넥슨 옥션 응답의 attackPowerDiff는 해당 캐릭터 기준으로 옥션이
+            // 직접 계산한 "전투력 증가량"이다. 이 값이 있는 매물에는 별도의
+            // 추정 공식을 다시 적용하면 실제 표시값과 달라지고 중복 계산된다.
+            const auctionPowerDelta = Number(topItem.attackPowerDiff);
+            const powerDelta = Number.isFinite(auctionPowerDelta)
+              ? auctionPowerDelta
+              : calculateCombatPowerDelta(currentState, replacement).totalDelta;
             partResults.push({
               part,
               equipment,
