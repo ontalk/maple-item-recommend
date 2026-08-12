@@ -1,5 +1,4 @@
 import type { EquipmentState, EquipmentStateItem } from './equipment-state';
-import { calculateSetEffects } from './set-effect-calculator';
 
 function sumStat(state: EquipmentState, key: string, includeItemStats = true): number {
   return (state.baseStats?.[key] ?? 0) + (includeItemStats ? state.items.reduce((total, item) => total + (item.stats[key] ?? 0), 0) : 0);
@@ -46,36 +45,25 @@ function actualStateAfterReplacements(current: EquipmentState, replacements: Equ
   }), current);
 }
 
-function formulaOnlyPower(state: EquipmentState): number {
-  return formulaPower(state, Object.keys(state.baseStats ?? {}).length === 0);
-}
-
 export function calculateCombatPowerAfterReplacements(current: EquipmentState, replacements: EquipmentStateItem[]): number {
-  const next = actualStateAfterReplacements(current, replacements);
-  // final_stat에는 현재 장비가 이미 포함되어 있으므로 교체 장비의 변화량만 더한다.
-  // final_stat이 없는 테스트/빈 캐릭터 상태에서는 전체 장비 옵션을 사용한다.
-  if (Object.keys(current.baseStats ?? {}).length === 0) return formulaPower(next) + calculateSetEffects(next.items);
+  // final_stat은 현재 장비/세트/심볼 등 적용 결과이므로, 후보 장비와
+  // 현재 장비의 차이만 final_stat에 적용한다.
+  if (Object.keys(current.baseStats ?? {}).length === 0) return Math.floor(formulaPower(actualStateAfterReplacements(current, replacements)));
   const deltas = replacements.map((replacement) => {
     const previous = current.items.find((item) => item.slot === replacement.slot);
     return { ...replacement, stats: subtractStats(replacement.stats, previous?.stats ?? {}) };
   });
-  return formulaPower({ ...current, items: deltas }) + calculateSetEffects(next.items);
+  return Math.floor(formulaPower({ ...current, items: deltas }));
 }
 
 export function calculateCombatPowerDelta(current: EquipmentState, replacement: EquipmentStateItem): CombatPowerDelta {
-  const nextState = actualStateAfterReplacements(current, [replacement]);
-  const oldFormulaPower = formulaOnlyPower(current);
-  const nextFormulaPower = calculateCombatPowerAfterReplacements(current, [replacement]) - calculateSetEffects(nextState.items);
-  const nextItems = nextState.items;
-  const setPower = calculateSetEffects(nextItems) - calculateSetEffects(current.items);
-  const formulaDelta = oldFormulaPower > 0 ? (nextFormulaPower / oldFormulaPower) - 1 : 0;
-  const equipmentPower = current.officialCombatPower !== undefined
-    ? current.officialCombatPower * formulaDelta
-    : nextFormulaPower - oldFormulaPower;
-  return { equipmentPower, setPower, totalDelta: equipmentPower + setPower };
+  const oldPower = calculateCombatPower(current);
+  const nextPower = calculateCombatPowerAfterReplacements(current, [replacement]);
+  const totalDelta = nextPower - oldPower;
+  return { equipmentPower: totalDelta, setPower: 0, totalDelta };
 }
 
 export function calculateCombatPower(state: EquipmentState): number {
   const hasBaseStats = Object.keys(state.baseStats ?? {}).length > 0;
-  return formulaPower(state, !hasBaseStats) + calculateSetEffects(state.items);
+  return Math.floor(formulaPower(state, !hasBaseStats));
 }

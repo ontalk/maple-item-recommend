@@ -1,6 +1,5 @@
 import type { EquipmentState, EquipmentStateItem } from './equipment-state';
-import { calculateCombatPower, calculateCombatPowerAfterReplacements, calculateCombatPowerDelta } from './combat-power-calculator';
-import { calculateSetEffects } from './set-effect-calculator';
+import { calculateCombatPowerDelta } from './combat-power-calculator';
 
 export interface OptimizerCandidate {
   part: string;
@@ -29,25 +28,52 @@ export interface OptimizedRecommendation {
 }
 
 function applyReplacementState(current: EquipmentState, replacement: EquipmentStateItem): EquipmentState {
-  const previous = current.items.find((item) => item.slot === replacement.slot);
-  const baseStats = { ...(current.baseStats ?? {}) };
-  const keys = new Set([...Object.keys(previous?.stats ?? {}), ...Object.keys(replacement.stats)]);
-  keys.forEach((key) => {
-    baseStats[key] = (baseStats[key] ?? 0) - (previous?.stats[key] ?? 0) + (replacement.stats[key] ?? 0);
-  });
   return {
     items: current.items.filter((item) => item.slot !== replacement.slot).concat(replacement),
     mainStat: current.mainStat,
     subStats: current.subStats,
-    baseStats,
+    // final_stat은 원래 캐릭터 기준값으로 고정한다. 교체 장비를 여기에
+    // 다시 더하면 다음 단계부터 장비 옵션이 중복 집계된다.
+    baseStats: current.baseStats,
     officialCombatPower: current.officialCombatPower,
   };
 }
 
+function evaluatePurchaseOrder(current: EquipmentState, selections: OptimizerCandidate[]): { power: number; steps: PurchaseStep[] } {
+  let state = current;
+  let cumulativeCost = 0;
+  let cumulativePower = 0;
+  const remaining = [...selections];
+  const steps: PurchaseStep[] = [];
+
+  while (remaining.length) {
+    const ranked = remaining.map((candidate) => ({
+      candidate,
+      // 현재 단계의 상태를 기준으로 후보를 다시 계산한다.
+      delta: calculateCombatPowerDelta(state, candidate.item).totalDelta,
+    })).sort((left, right) =>
+      (right.delta / Math.max(right.candidate.price, 1)) -
+      (left.delta / Math.max(left.candidate.price, 1))
+    );
+    const { candidate, delta } = ranked[0];
+    remaining.splice(remaining.indexOf(candidate), 1);
+    cumulativeCost += candidate.price;
+    cumulativePower += delta;
+    steps.push({
+      ...candidate,
+      step: steps.length + 1,
+      delta,
+      cumulativeCost,
+      cumulativePower,
+      reason: cumulativePower >= 0 ? '이전 장비 적용 상태에서 다시 계산한 전투력·세트 효과 기준' : '이전 장비 적용 상태에서 다시 계산한 결과',
+    });
+    state = { ...applyReplacementState(state, candidate.item), officialCombatPower: (state.officialCombatPower ?? 0) + delta };
+  }
+  return { power: cumulativePower, steps };
+}
+
 function powerFor(current: EquipmentState, selections: OptimizerCandidate[]): number {
-  // 경매장 후보에는 현재 캐릭터 기준 attackPowerDiff가 들어온다.
-  // 이 값을 다시 공식으로 환산하면 인게임/옥션 값과 달라지므로 그대로 사용한다.
-  return selections.reduce((sum, candidate) => sum + candidate.power, 0);
+  return evaluatePurchaseOrder(current, selections).power;
 }
 
 function better(current: EquipmentState, left: OptimizerCandidate[], right: OptimizerCandidate[], target: number, preferTarget: boolean): boolean {
@@ -76,23 +102,6 @@ export function optimizeRecommendations(current: EquipmentState, candidates: Opt
   }
   const selections = states.sort((a, b) => better(current, a, b, targetIncrease, preferTarget) ? -1 : 1)[0] ?? [];
   const cost = selections.reduce((sum, item) => sum + item.price, 0);
-  const power = powerFor(current, selections);
-  let state = current;
-  let cumulativeCost = 0;
-  let cumulativePower = 0;
-  const remaining = [...selections];
-  const purchaseOrder: PurchaseStep[] = [];
-  while (remaining.length) {
-    const ranked = remaining.map((candidate) => ({ candidate, delta: candidate.power }))
-      .sort((a, b) => (b.delta / Math.max(b.candidate.price, 1)) - (a.delta / Math.max(a.candidate.price, 1)));
-    const { candidate, delta } = ranked[0];
-    remaining.splice(remaining.indexOf(candidate), 1);
-    const nextState = applyReplacementState(state, candidate.item);
-    nextState.officialCombatPower = (state.officialCombatPower ?? calculateCombatPower(state)) + delta;
-    state = nextState;
-    cumulativeCost += candidate.price;
-    cumulativePower += delta;
-    purchaseOrder.push({ ...candidate, step: purchaseOrder.length + 1, delta, cumulativeCost, cumulativePower, reason: cumulativePower >= targetIncrease ? '이 장비 구매로 목표 전투력에 도달' : delta > 0 ? '현재 장비·세트 효과를 반영한 가격 대비 증가 효율이 높음' : '최종 조합의 세트 효과를 활성화하는 장비' });
-  }
-  return { selections, purchaseOrder, cost, power, targetReached: power >= targetIncrease };
+  const evaluated = evaluatePurchaseOrder(current, selections);
+  return { selections, purchaseOrder: evaluated.steps, cost, power: evaluated.power, targetReached: evaluated.power >= targetIncrease };
 }

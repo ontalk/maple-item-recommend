@@ -683,10 +683,11 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
       const optimizedSets = optimized.selections.map((selected) => {
         const original = selected.payload as EquipmentSearchResult;
         const candidates = candidatesByPart[selected.part] || [];
+        const purchaseStep = optimized.purchaseOrder.find((step) => step.name === selected.name && step.slot === selected.slot);
         const slotNumber = selected.slot.replace(selected.part, '');
         return {
           part: EQUIPMENT_SLOT_COUNTS[selected.part] ? `${selected.part} ${slotNumber}` : selected.part,
-          selected: { ...original, part: selected.part, recommendedPower: selected.power, recommendedPrice: selected.price },
+          selected: { ...original, part: selected.part, recommendedPower: purchaseStep?.delta ?? selected.power, recommendedPrice: selected.price },
           alternatives: candidates.filter((candidate) => candidate.equipment.name !== selected.name),
         };
       });
@@ -717,7 +718,11 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
 
   const isProfileValid = Number.isInteger(profile.accountId) && Number.isInteger(profile.characterId) && Number.isInteger(profile.worldId) && profile.accountId > 0 && profile.characterId > 0 && profile.worldId > 0;
   const selectedCost = optimalSets.reduce((sum, set) => sum + (set.selected.recommendedPrice || 0), 0);
-  const selectedPower = optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
+  // 최종 요약은 대표 매물 하나의 값이 아니라, 실제 구매 순서의 단계별
+  // 증가량을 누적한 값과 동일해야 한다. (기존에는 서로 다른 값이 표시됨)
+  const selectedPower = purchaseOrder.length > 0
+    ? purchaseOrder[purchaseOrder.length - 1].cumulativePower
+    : optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
   const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
   const currentPower = parseMesos(currentCombatPower);
   const targetPower = Math.max(0, targetPowerTotal - currentPower);
