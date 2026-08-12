@@ -75,7 +75,7 @@
     "https://auction.maplestory.nexon.com/*",
     "https://api.mskr.nexon.com/*",
     "http://localhost:3000/*",
-    "https://your-app.vercel.app/*"  // 추가
+    "https://*.vercel.app/*"
   ]
   ```
 

@@ -32,13 +32,13 @@ function normalizeStatKey(key: string, value?: unknown): string {
   if (text.includes('luk')) return 'luk';
   if (text.includes('주스탯')) return 'mainStat';
   if (text.includes('부스탯')) return 'subStat';
+  if (text.includes('공격력%') || text.includes('공격력퍼') || text.includes('attackpercent')) return 'attackPercent';
+  if (text.includes('마력%') || text.includes('마력퍼') || text.includes('magicpercent')) return 'magicPercent';
   if (text.includes('공격력') || text.includes('attackpower')) return 'attackPower';
   if (text.includes('마력') || text.includes('magicpower')) return 'magicPower';
   if (text.includes('보스') || text.includes('bossdamage')) return 'bossDamage';
   if (text.includes('최종데미지') || text.includes('finaldamage')) return 'finalDamage';
   if (text.includes('크리티컬데미지') || text.includes('criticaldamage')) return 'criticalDamage';
-  if (text.includes('공격력%') || text.includes('공격력퍼') || text.includes('attackpercent')) return 'attackPercent';
-  if (text.includes('마력%') || text.includes('마력퍼') || text.includes('magicpercent')) return 'magicPercent';
   return key;
 }
 

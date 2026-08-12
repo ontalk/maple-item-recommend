@@ -1,5 +1,5 @@
 import type { EquipmentState, EquipmentStateItem } from './equipment-state';
-import { calculateCombatPower, calculateCombatPowerDelta } from './combat-power-calculator';
+import { calculateCombatPower, calculateCombatPowerAfterReplacements, calculateCombatPowerDelta } from './combat-power-calculator';
 
 export interface OptimizerCandidate {
   part: string;
@@ -27,17 +27,23 @@ export interface OptimizedRecommendation {
   targetReached: boolean;
 }
 
-function stateFor(current: EquipmentState, selections: OptimizerCandidate[]): EquipmentState {
-  return selections.reduce((state, candidate) => ({
-    items: state.items.filter((item) => item.slot !== candidate.item.slot).concat(candidate.item),
-    mainStat: state.mainStat,
-    subStats: state.subStats,
-    baseStats: state.baseStats,
-  }), current);
+function applyReplacementState(current: EquipmentState, replacement: EquipmentStateItem): EquipmentState {
+  const previous = current.items.find((item) => item.slot === replacement.slot);
+  const baseStats = { ...(current.baseStats ?? {}) };
+  const keys = new Set([...Object.keys(previous?.stats ?? {}), ...Object.keys(replacement.stats)]);
+  keys.forEach((key) => {
+    baseStats[key] = (baseStats[key] ?? 0) - (previous?.stats[key] ?? 0) + (replacement.stats[key] ?? 0);
+  });
+  return {
+    items: current.items.filter((item) => item.slot !== replacement.slot).concat(replacement),
+    mainStat: current.mainStat,
+    subStats: current.subStats,
+    baseStats,
+  };
 }
 
 function powerFor(current: EquipmentState, selections: OptimizerCandidate[]): number {
-  return calculateCombatPower(stateFor(current, selections)) - calculateCombatPower(current);
+  return calculateCombatPowerAfterReplacements(current, selections.map((candidate) => candidate.item)) - calculateCombatPower(current);
 }
 
 function better(current: EquipmentState, left: OptimizerCandidate[], right: OptimizerCandidate[], target: number, preferTarget: boolean): boolean {
@@ -77,12 +83,7 @@ export function optimizeRecommendations(current: EquipmentState, candidates: Opt
       .sort((a, b) => (b.delta / Math.max(b.candidate.price, 1)) - (a.delta / Math.max(a.candidate.price, 1)));
     const { candidate, delta } = ranked[0];
     remaining.splice(remaining.indexOf(candidate), 1);
-    state = {
-      items: state.items.filter((item) => item.slot !== candidate.item.slot).concat(candidate.item),
-      mainStat: state.mainStat,
-      subStats: state.subStats,
-      baseStats: state.baseStats,
-    };
+    state = applyReplacementState(state, candidate.item);
     cumulativeCost += candidate.price;
     cumulativePower += delta;
     purchaseOrder.push({ ...candidate, step: purchaseOrder.length + 1, delta, cumulativeCost, cumulativePower, reason: cumulativePower >= targetIncrease ? '이 장비 구매로 목표 전투력에 도달' : delta > 0 ? '현재 장비·세트 효과를 반영한 가격 대비 증가 효율이 높음' : '최종 조합의 세트 효과를 활성화하는 장비' });
