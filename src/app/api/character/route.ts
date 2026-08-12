@@ -47,8 +47,8 @@ function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
     item_shape_name: equipment.item_shape_name || '',
     item_shape_icon: equipment.item_shape_icon || '',
     item_gender: equipment.item_gender || '',
-    item_total_option: [],
-    item_base_option: [],
+    item_total_option: Array.isArray(equipment.item_total_option) ? equipment.item_total_option : [],
+    item_base_option: Array.isArray(equipment.item_base_option) ? equipment.item_base_option : [],
     item_exceptional_option: equipment.item_exceptional_option ? [{ option_type: 'exceptional', option_value: equipment.item_exceptional_option }] : [],
     item_potential_option_grade: equipment.item_potential_option_grade || '',
     item_potential_option: potentialArr,
@@ -58,7 +58,7 @@ function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
     item_max_starforce: 25,
     item_equip_level: equipment.item_equip_level || 150,
     item_equip_type: equipment.item_type || '',
-    item_set_name: null,
+    item_set_name: equipment.item_set_name || equipment.set_name || null,
   };
 }
 
@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ...recommendations,
         character_image: null,
+        character_stats: [],
         character_level: 0,
         character_class: '닉네임 미입력',
         combat_power: 0,
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...recommendations,
       character_image: character.basic.character_image,
+      character_stats: character.character_stats || [],
       character_level: character.basic.character_level,
       character_class: character.basic.character_class,
       combat_power: character.basic.combat_power,

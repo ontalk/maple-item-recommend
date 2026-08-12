@@ -82,6 +82,8 @@ export default function Home() {
             benchmark={searchData.data.benchmark}
             characterClass={searchData.data?.basic?.character_class}
             currentCombatPower={searchData.data?.combat_power}
+            currentEquipment={searchData.data?.recommendations?.map((entry: any) => entry.current_item).filter(Boolean)}
+            characterStats={searchData.data?.character_stats || []}
           />
         </div>
       </section>}

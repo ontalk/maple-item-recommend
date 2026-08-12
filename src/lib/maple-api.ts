@@ -158,6 +158,7 @@ export async function getCharacterFullInfo(characterName: string) {
         character_image: basic?.character_image || '',
         combat_power: combatPower,
       },
+      character_stats: statData?.final_stat || [],
       equipment: equipment,
     };
   } catch (error) {

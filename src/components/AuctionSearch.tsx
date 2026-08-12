@@ -3,8 +3,12 @@
 import { useRef, useState } from 'react';
 import { Loader2, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
 import type { BenchmarkComparison } from '@/types';
+import type { CharacterItem, CharacterStat } from '@/types';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
+import { auctionCandidateToStateItem, equipmentStateFromCharacter } from '@/lib/equipment-state';
+import { calculateCombatPowerDelta } from '@/lib/combat-power-calculator';
+import { optimizeRecommendations, type OptimizerCandidate, type PurchaseStep } from '@/lib/recommendation-optimizer';
 
 interface EquipmentSearchResult {
   part: string;
@@ -17,6 +21,7 @@ interface EquipmentSearchResult {
   listingCount: number;
   efficiency: number; // 효율 = 전투력 / 가격
   topItem?: AuctionRawItem;
+  powerDelta?: number;
 }
 
 interface OptimalSet {
@@ -333,7 +338,7 @@ function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?
   return !isJobSpecific || equipment.name.includes(JOB_SUFFIX_BY_CLASS[jobClass] || '');
 }
 
-export function AuctionSearch({ benchmark, characterClass, currentCombatPower }: { benchmark?: BenchmarkComparison; characterClass?: string; currentCombatPower?: number | string }) {
+export function AuctionSearch({ benchmark, characterClass, currentCombatPower, currentEquipment = [], characterStats = [] }: { benchmark?: BenchmarkComparison; characterClass?: string; currentCombatPower?: number | string; currentEquipment?: CharacterItem[]; characterStats?: CharacterStat[] }) {
   const searchLockRef = useRef(false);
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 0,
@@ -359,6 +364,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
   const [remaining, setRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
+  const [purchaseOrder, setPurchaseOrder] = useState<PurchaseStep[]>([]);
   const [equipmentSearchQuery, setEquipmentSearchQuery] = useState('');
   const [selectedEquipmentNames, setSelectedEquipmentNames] = useState<Set<string>>(
     () => new Set(ALL_SEARCHABLE_EQUIPMENT
@@ -402,6 +408,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
     setIsSearching(true);
     setError(null);
     setOptimalSets([]);
+    setPurchaseOrder([]);
     
     if (selectedEquipmentNames.size === 0) {
       setError('검색할 아이템을 하나 이상 선택해주세요.');
@@ -422,6 +429,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
     const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
     const currentPower = parseMesos(currentCombatPower);
     const targetPower = Math.max(0, targetPowerTotal - currentPower);
+    const currentState = equipmentStateFromCharacter(currentEquipment, characterClass, characterStats);
 
     if (budget <= 0) {
       setError('사용할 메소를 0보다 크게 입력해주세요. 단위는 억 메소입니다.');
@@ -604,6 +612,9 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
               rawPrice: filteredItems[0]?.pricePerItem || filteredItems[0]?.price,
             });
 
+            const topItem = valueListing?.item || filteredItems[0];
+            const replacement = auctionCandidateToStateItem(topItem, part, part);
+            const powerDelta = calculateCombatPowerDelta(currentState, replacement).totalDelta;
             partResults.push({
               part,
               equipment,
@@ -611,10 +622,11 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
               medianPrice: median(prices),
               avgAttackPowerDiff: avgAttackPower,
               recommendedPrice,
-              recommendedPower,
+              recommendedPower: powerDelta || recommendedPower,
               listingCount: filteredItems.length,
               efficiency,
-              topItem: valueListing?.item || filteredItems[0],
+              topItem,
+              powerDelta,
             });
           } catch (err) {
             // 로그인 세션이 끊긴 뒤에는 다음 아이템 검색도 모두 실패하므로
@@ -646,29 +658,35 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
         setOptimalSets([...allOptimalSets]);
       }
 
-      const optimizationGroups: Record<string, EquipmentSearchResult[]> = {};
-      Object.entries(candidatesByPart).forEach(([part, candidates]) => {
+      const optimizerCandidates: OptimizerCandidate[] = Object.entries(candidatesByPart).flatMap(([part, candidates]) => {
         const slotCount = EQUIPMENT_SLOT_COUNTS[part] || 1;
-        for (let slot = 1; slot <= slotCount; slot += 1) {
-          optimizationGroups[`${part}-${slot}`] = candidates;
-        }
+        return Array.from({ length: slotCount }, (_, index) => {
+          const slot = `${part}${slotCount > 1 ? index + 1 : ''}`;
+          return candidates.map((candidate) => ({
+            part,
+            slot,
+            name: candidate.equipment.name,
+            price: candidate.recommendedPrice || 0,
+            power: candidate.powerDelta ?? candidate.recommendedPower,
+            item: auctionCandidateToStateItem(candidate.topItem!, part, slot),
+            payload: candidate,
+          }));
+        }).flat();
       });
-
-      const optimized = optimizeEquipmentSet(optimizationGroups, budget, targetPower, preferTargetPower);
-      const usedSlots: Record<string, number> = {};
+      const optimized = optimizeRecommendations(currentState, optimizerCandidates, budget, targetPower, preferTargetPower);
       const optimizedSets = optimized.selections.map((selected) => {
-        const basePart = selected.part.replace(/-\d+$/, '');
-        const slot = (usedSlots[basePart] || 0) + 1;
-        usedSlots[basePart] = slot;
-        const candidates = candidatesByPart[basePart] || [];
+        const original = selected.payload as EquipmentSearchResult;
+        const candidates = candidatesByPart[selected.part] || [];
+        const slotNumber = selected.slot.replace(selected.part, '');
         return {
-          part: EQUIPMENT_SLOT_COUNTS[basePart] ? `${basePart} ${slot}` : basePart,
-          selected: { ...selected, part: basePart },
-          alternatives: candidates.filter((candidate) => candidate.equipment.name !== selected.equipment.name),
+          part: EQUIPMENT_SLOT_COUNTS[selected.part] ? `${selected.part} ${slotNumber}` : selected.part,
+          selected: { ...original, part: selected.part, recommendedPower: selected.power, recommendedPrice: selected.price },
+          alternatives: candidates.filter((candidate) => candidate.equipment.name !== selected.name),
         };
       });
 
       setOptimalSets(optimizedSets);
+      setPurchaseOrder(optimized.purchaseOrder);
       if (optimizedSets.length === 0) {
         const searchedCandidateCount = Object.values(candidatesByPart)
           .reduce((sum, candidates) => sum + candidates.length, 0);
@@ -1093,7 +1111,15 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
 
           {/* 총 예상 비용 */}
           <div className="mb-6 rounded-xl bg-gradient-to-r from-maple-orange/10 to-orange-100 border-2 border-maple-orange p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">현재 전투력</p>
+                <p className="text-2xl font-extrabold text-gray-800">{formatMesos(currentPower)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-1">목표 전투력</p>
+                <p className="text-2xl font-extrabold text-gray-800">{formatMesos(targetPowerTotal)}</p>
+              </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">💰 총 예상 비용</p>
                 <p className="text-3xl font-extrabold text-maple-orange">
@@ -1101,19 +1127,32 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600 mb-1">⚡ 총 전투력 증가</p>
+                <p className="text-sm text-gray-600 mb-1">⚡ 최종 예상 전투력</p>
                 <p className="text-3xl font-extrabold text-blue-600">
-                  +{selectedPower.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">📊 평균 효율</p>
-                <p className="text-3xl font-extrabold text-emerald-600">
-                  {(optimalSets.reduce((sum, set) => sum + set.selected.efficiency, 0) / optimalSets.length).toFixed(2)}
+                  {formatMesos(currentPower + selectedPower)}
                 </p>
               </div>
             </div>
+            <p className="mt-3 text-sm text-gray-600">예산 {formatMesos(budgetEok ? toNumber(budgetEok) * 100000000 : 0)} · 남은 예산 {formatMesos(Math.max(0, toNumber(budgetEok) * 100000000 - selectedCost))} · 전투력 증가 +{selectedPower.toLocaleString()}</p>
           </div>
+
+          {purchaseOrder.length > 0 && (
+            <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+              <h5 className="mb-4 text-lg font-bold text-gray-900">🛒 구매 순서</h5>
+              <div className="space-y-3">
+                {purchaseOrder.map((step) => (
+                  <div key={`${step.step}-${step.slot}`} className="rounded-lg border border-blue-100 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-bold text-gray-900">{step.step}. {step.part} · {step.name}</p>
+                      <p className="font-extrabold text-maple-orange">{formatMesos(step.price)}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-blue-700">이번 단계 +{step.delta.toLocaleString()} · 누적 +{step.cumulativePower.toLocaleString()} · 누적 비용 {formatMesos(step.cumulativeCost)}</p>
+                    <p className="mt-1 text-xs text-gray-500">{step.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 부위별 최적 장비 */}
           <div className="space-y-4">
