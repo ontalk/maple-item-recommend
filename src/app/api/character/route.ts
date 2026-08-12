@@ -115,6 +115,8 @@ export async function GET(request: NextRequest) {
       ...recommendations,
       character_image: character.basic.character_image,
       character_stats: character.character_stats || [],
+      character_set_effect: character.character_set_effect,
+      character_other_stat: character.character_other_stat,
       character_level: character.basic.character_level,
       character_class: character.basic.character_class,
       combat_power: character.basic.combat_power,

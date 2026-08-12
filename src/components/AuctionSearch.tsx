@@ -429,7 +429,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
     const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
     const currentPower = parseMesos(currentCombatPower);
     const targetPower = Math.max(0, targetPowerTotal - currentPower);
-    const currentState = equipmentStateFromCharacter(currentEquipment, characterClass, characterStats);
+    const currentState = equipmentStateFromCharacter(currentEquipment, characterClass, characterStats, currentPower);
 
     if (budget <= 0) {
       setError('사용할 메소를 0보다 크게 입력해주세요. 단위는 억 메소입니다.');

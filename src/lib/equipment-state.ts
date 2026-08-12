@@ -18,10 +18,7 @@ export interface EquipmentState {
   mainStat?: string;
   subStats?: string[];
   baseStats?: Record<string, number>;
-}
-
-function numbers(...values: unknown[]): number[] {
-  return values.map(Number).filter(Number.isFinite);
+  officialCombatPower?: number;
 }
 
 function normalizeStatKey(key: string, value?: unknown): string {
@@ -89,9 +86,11 @@ export function characterItemToStateItem(item: CharacterItem, index = 0): Equipm
 
 export function auctionCandidateToStateItem(item: AuctionRawItem, part: string, slot = part): EquipmentStateItem {
   const tooltip = item.toolTip;
-  const stats = mergeStats(tooltip?.stat, tooltip?.baseStat, tooltip?.starforceStat, tooltip?.upgradeStat, tooltip?.exOptionStat);
-  const attack = numbers(stats.attackPower, stats.magicPower, (item as AuctionRawItem & { attackPowerDiff?: number }).attackPowerDiff)[0];
-  if (attack !== undefined && stats.attackPower === undefined && stats.magicPower === undefined) stats.attackPower = attack;
+  // tooltip.stat은 장비에 최종 적용된 스탯이다. base/starforce/upgrade/exOption을
+  // 함께 더하면 동일한 옵션을 여러 번 합산하게 되므로 stat을 우선 사용한다.
+  const stats = tooltip?.stat
+    ? mergeStats(tooltip.stat)
+    : mergeStats(tooltip?.baseStat, tooltip?.starforceStat, tooltip?.upgradeStat, tooltip?.exOptionStat);
   return {
     slot,
     part,
@@ -102,7 +101,7 @@ export function auctionCandidateToStateItem(item: AuctionRawItem, part: string, 
   };
 }
 
-export function equipmentStateFromCharacter(items: CharacterItem[], characterClass?: string, characterStats: CharacterStat[] = []): EquipmentState {
+export function equipmentStateFromCharacter(items: CharacterItem[], characterClass?: string, characterStats: CharacterStat[] = [], officialCombatPower?: number): EquipmentState {
   const mainStat = CLASS_MAIN_STAT[characterClass ?? ''] ?? 'STR';
   const subStats = ['STR', 'DEX', 'INT', 'LUK'].filter((stat) => stat !== mainStat).map((stat) => stat.toLowerCase());
   const baseStats = characterStats.reduce<Record<string, number>>((result, stat) => {
@@ -110,7 +109,7 @@ export function equipmentStateFromCharacter(items: CharacterItem[], characterCla
     if (Number.isFinite(value)) result[normalizeStatKey(stat.stat_name, stat.stat_value)] = value;
     return result;
   }, {});
-  return { items: items.map(characterItemToStateItem), mainStat: mainStat.toLowerCase(), subStats, baseStats };
+  return { items: items.map(characterItemToStateItem), mainStat: mainStat.toLowerCase(), subStats, baseStats, officialCombatPower };
 }
 
 export function replaceEquipment(state: EquipmentState, replacement: EquipmentStateItem): EquipmentState {

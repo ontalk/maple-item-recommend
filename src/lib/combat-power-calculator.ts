@@ -46,6 +46,10 @@ function actualStateAfterReplacements(current: EquipmentState, replacements: Equ
   }), current);
 }
 
+function formulaOnlyPower(state: EquipmentState): number {
+  return formulaPower(state, Object.keys(state.baseStats ?? {}).length === 0);
+}
+
 export function calculateCombatPowerAfterReplacements(current: EquipmentState, replacements: EquipmentStateItem[]): number {
   const next = actualStateAfterReplacements(current, replacements);
   // final_stat에는 현재 장비가 이미 포함되어 있으므로 교체 장비의 변화량만 더한다.
@@ -59,11 +63,15 @@ export function calculateCombatPowerAfterReplacements(current: EquipmentState, r
 }
 
 export function calculateCombatPowerDelta(current: EquipmentState, replacement: EquipmentStateItem): CombatPowerDelta {
-  const oldPower = calculateCombatPower(current);
-  const nextPower = calculateCombatPowerAfterReplacements(current, [replacement]);
-  const nextItems = actualStateAfterReplacements(current, [replacement]).items;
+  const nextState = actualStateAfterReplacements(current, [replacement]);
+  const oldFormulaPower = formulaOnlyPower(current);
+  const nextFormulaPower = calculateCombatPowerAfterReplacements(current, [replacement]) - calculateSetEffects(nextState.items);
+  const nextItems = nextState.items;
   const setPower = calculateSetEffects(nextItems) - calculateSetEffects(current.items);
-  const equipmentPower = nextPower - oldPower - setPower;
+  const formulaDelta = oldFormulaPower > 0 ? (nextFormulaPower / oldFormulaPower) - 1 : 0;
+  const equipmentPower = current.officialCombatPower !== undefined
+    ? current.officialCombatPower * formulaDelta
+    : nextFormulaPower - oldFormulaPower;
   return { equipmentPower, setPower, totalDelta: equipmentPower + setPower };
 }
 

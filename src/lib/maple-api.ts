@@ -110,6 +110,27 @@ export async function getCharacterStat(ocid: string) {
   }
 }
 
+async function getCharacterEndpoint(ocid: string, endpoint: string) {
+  try {
+    const response = await fetch(`${NEXON_API_BASE_URL}/character/${endpoint}?ocid=${ocid}`, {
+      headers: { 'x-nxopen-api-key': getApiKey() },
+      next: { revalidate: 900 },
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export function getCharacterSetEffect(ocid: string) {
+  return getCharacterEndpoint(ocid, 'set-effect');
+}
+
+export function getCharacterOtherStat(ocid: string) {
+  return getCharacterEndpoint(ocid, 'other-stat');
+}
+
 export async function getCharacterEquipment(ocid: string) {
   try {
     const apiKey = getApiKey();
@@ -138,11 +159,13 @@ export async function getCharacterFullInfo(characterName: string) {
     const ocid = await getOcid(characterName);
     if (!ocid) return null;
 
-    // 기본 정보, 스탯 정보, 장비 정보를 동시 호출
-    const [basic, statData, equipment] = await Promise.all([
+    // 현재 전투력 기준과 장비/세트 상태를 닉네임 하나로 자동 조회한다.
+    const [basic, statData, equipment, setEffect, otherStat] = await Promise.all([
       getCharacterBasic(ocid),
       getCharacterStat(ocid),
-      getCharacterEquipment(ocid)
+      getCharacterEquipment(ocid),
+      getCharacterSetEffect(ocid),
+      getCharacterOtherStat(ocid),
     ]);
 
     // 전투력 값 찾기
@@ -159,6 +182,8 @@ export async function getCharacterFullInfo(characterName: string) {
         combat_power: combatPower,
       },
       character_stats: statData?.final_stat || [],
+      character_set_effect: setEffect,
+      character_other_stat: otherStat,
       equipment: equipment,
     };
   } catch (error) {

@@ -1,5 +1,6 @@
 import type { EquipmentState, EquipmentStateItem } from './equipment-state';
 import { calculateCombatPower, calculateCombatPowerAfterReplacements, calculateCombatPowerDelta } from './combat-power-calculator';
+import { calculateSetEffects } from './set-effect-calculator';
 
 export interface OptimizerCandidate {
   part: string;
@@ -39,11 +40,19 @@ function applyReplacementState(current: EquipmentState, replacement: EquipmentSt
     mainStat: current.mainStat,
     subStats: current.subStats,
     baseStats,
+    officialCombatPower: current.officialCombatPower,
   };
 }
 
 function powerFor(current: EquipmentState, selections: OptimizerCandidate[]): number {
-  return calculateCombatPowerAfterReplacements(current, selections.map((candidate) => candidate.item)) - calculateCombatPower(current);
+  const replacements = selections.map((candidate) => candidate.item);
+  const nextItems = replacements.reduce((items, replacement) => items.filter((item) => item.slot !== replacement.slot).concat(replacement), current.items);
+  const currentFormula = calculateCombatPower(current) - calculateSetEffects(current.items);
+  const nextFormula = calculateCombatPowerAfterReplacements(current, replacements) - calculateSetEffects(nextItems);
+  const equipmentDelta = current.officialCombatPower !== undefined && currentFormula > 0
+    ? current.officialCombatPower * ((nextFormula / currentFormula) - 1)
+    : nextFormula - currentFormula;
+  return equipmentDelta + calculateSetEffects(nextItems) - calculateSetEffects(current.items);
 }
 
 function better(current: EquipmentState, left: OptimizerCandidate[], right: OptimizerCandidate[], target: number, preferTarget: boolean): boolean {
@@ -83,7 +92,9 @@ export function optimizeRecommendations(current: EquipmentState, candidates: Opt
       .sort((a, b) => (b.delta / Math.max(b.candidate.price, 1)) - (a.delta / Math.max(a.candidate.price, 1)));
     const { candidate, delta } = ranked[0];
     remaining.splice(remaining.indexOf(candidate), 1);
-    state = applyReplacementState(state, candidate.item);
+    const nextState = applyReplacementState(state, candidate.item);
+    nextState.officialCombatPower = (state.officialCombatPower ?? calculateCombatPower(state)) + delta;
+    state = nextState;
     cumulativeCost += candidate.price;
     cumulativePower += delta;
     purchaseOrder.push({ ...candidate, step: purchaseOrder.length + 1, delta, cumulativeCost, cumulativePower, reason: cumulativePower >= targetIncrease ? '이 장비 구매로 목표 전투력에 도달' : delta > 0 ? '현재 장비·세트 효과를 반영한 가격 대비 증가 효율이 높음' : '최종 조합의 세트 효과를 활성화하는 장비' });
