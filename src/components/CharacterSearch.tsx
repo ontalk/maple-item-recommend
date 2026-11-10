@@ -4,7 +4,7 @@ import { useState, FormEvent } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 
 export default function CharacterSearch({ onSearch }: { onSearch: (name: string) => Promise<void> | void }) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState('못말리는망겜');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
