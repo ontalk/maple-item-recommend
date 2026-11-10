@@ -9,9 +9,10 @@ import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/a
 import { parseListingStats, type ParsedListing } from '@/lib/auction-listing';
 import {
   DEFAULT_AUCTION_PROFILE,
+  WORLD_OPTIONS,
+  isKnownWorldId,
   loadAuctionProfile,
   saveAuctionProfile,
-  worldNameForId,
 } from '@/lib/auction-profile';
 import {
   EMPTY_ITEM_STATS,
@@ -318,7 +319,6 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
         {([
           { key: 'accountId', label: 'Account' },
           { key: 'characterId', label: 'Character' },
-          { key: 'worldId', label: 'World' },
         ] as const).map((field) => (
           <label key={field.key} className="flex flex-col gap-0.5 text-[10px] font-semibold text-gray-500">
             {field.label}
@@ -331,12 +331,38 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
             />
           </label>
         ))}
-        <span className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">
-          {worldNameForId(auction.worldId) ?? '월드 확인 필요'}
-        </span>
+        <label className="flex flex-col gap-0.5 text-[10px] font-semibold text-gray-500">
+          World
+          <select
+            value={isKnownWorldId(auction.worldId) ? String(auction.worldId) : 'custom'}
+            onChange={(event) => {
+              const value = event.target.value;
+              setAuction((current) => ({ ...current, worldId: value === 'custom' ? 0 : Number(value) }));
+            }}
+            className="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-900 outline-none focus:border-maple-orange"
+          >
+            {WORLD_OPTIONS.map((world) => (
+              <option key={world.id} value={world.id}>{world.name}</option>
+            ))}
+            <option value="custom">직접 입력</option>
+          </select>
+        </label>
+        {!isKnownWorldId(auction.worldId) && (
+          <label className="flex flex-col gap-0.5 text-[10px] font-semibold text-gray-500">
+            월드 번호
+            <input
+              value={auction.worldId || ''}
+              onChange={(event) => setAuction((current) => ({ ...current, worldId: Number(event.target.value) || 0 }))}
+              inputMode="numeric"
+              placeholder="ID"
+              className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-right text-xs font-semibold text-gray-900 outline-none focus:border-maple-orange"
+            />
+          </label>
+        )}
         <p className="max-w-xl text-[10px] leading-relaxed text-gray-400">
-          World는 서버 번호입니다(스카니아 5 · 크로아 8). 한 번 입력하면 이 브라우저에 저장되고,
-          아래 옥션 자동 추천에도 같이 쓰입니다. 메이플 옥션에 로그인한 탭과 크롬 확장 프로그램이 필요합니다.
+          World는 서버 이름으로 고릅니다(현재 스카니아·크로아). 목록에 없는 월드는 ‘직접 입력’으로 번호를 넣어 주세요.
+          한 번 입력하면 이 브라우저에 저장되고, 아래 옥션 자동 추천에도 같이 쓰입니다.
+          메이플 옥션에 로그인한 탭과 크롬 확장 프로그램이 필요합니다.
         </p>
       </div>
 

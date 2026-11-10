@@ -4,13 +4,17 @@ import type { AuctionProfile } from './auction-extension';
 export const AUCTION_PROFILE_KEY = 'maple-combo-auction-profile';
 
 /**
- * 옥션 API는 worldId로 서버를 구분한다. 이름을 확인한 월드만 적어 두고,
- * 모르는 월드는 숫자만 그대로 보여 준다.
+ * 옥션 API는 worldId로 서버를 구분한다. 번호를 확인한 월드만 이름으로 고를 수 있게 두고,
+ * 확인되지 않은 월드는 숫자를 직접 입력한다. 새 월드를 확인하면 여기에 한 줄만 추가하면 된다.
  */
-export const WORLD_ID_BY_NAME: Record<string, number> = {
-  스카니아: 5,
-  크로아: 8,
-};
+export const WORLD_OPTIONS: Array<{ id: number; name: string }> = [
+  { id: 5, name: '스카니아' },
+  { id: 8, name: '크로아' },
+];
+
+export const WORLD_ID_BY_NAME: Record<string, number> = Object.fromEntries(
+  WORLD_OPTIONS.map((world) => [world.name, world.id]),
+);
 
 /** 입력칸을 비워 두지 않도록 넣어 둔 기본값. 화면에서 언제든 바꿀 수 있다. */
 export const DEFAULT_AUCTION_PROFILE: AuctionProfile = {
@@ -25,8 +29,11 @@ export function worldIdForName(name?: string | null): number | null {
 }
 
 export function worldNameForId(id: number): string | null {
-  const entry = Object.entries(WORLD_ID_BY_NAME).find(([, value]) => value === id);
-  return entry ? entry[0] : null;
+  return WORLD_OPTIONS.find((world) => world.id === id)?.name ?? null;
+}
+
+export function isKnownWorldId(id: number): boolean {
+  return WORLD_OPTIONS.some((world) => world.id === id);
 }
 
 function toId(value: unknown): number {

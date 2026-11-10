@@ -6,6 +6,8 @@ import type { BenchmarkComparison, CharacterItem } from '@/types';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
 import {
   DEFAULT_AUCTION_PROFILE,
+  WORLD_OPTIONS,
+  isKnownWorldId,
   loadAuctionProfile,
   saveAuctionProfile,
   worldNameForId,
@@ -811,14 +813,30 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 <span className="ml-1 font-bold text-maple-orange">{worldNameForId(profile.worldId)}</span>
               )}
             </span>
-            <input 
-              value={profile.worldId || ''} 
-              onChange={(event) => setNumber('worldId', event.target.value)} 
-              inputMode="numeric" 
-              placeholder="예: 8"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition placeholder:text-gray-400" 
+            <select
+              value={isKnownWorldId(profile.worldId) ? String(profile.worldId) : 'custom'}
+              onChange={(event) => {
+                const value = event.target.value;
+                setNumber('worldId', value === 'custom' ? '0' : value);
+              }}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 font-semibold focus:border-maple-orange focus:ring-2 focus:ring-maple-orange/20 outline-none transition bg-white"
               disabled={isSearching}
-            />
+            >
+              {WORLD_OPTIONS.map((world) => (
+                <option key={world.id} value={world.id}>{world.name}</option>
+              ))}
+              <option value="custom">직접 입력</option>
+            </select>
+            {!isKnownWorldId(profile.worldId) && (
+              <input
+                value={profile.worldId || ''}
+                onChange={(event) => setNumber('worldId', event.target.value)}
+                inputMode="numeric"
+                placeholder="월드 번호"
+                className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-900 font-semibold focus:border-maple-orange outline-none"
+                disabled={isSearching}
+              />
+            )}
           </label>
           <label className="block">
             <span className="text-xs font-semibold text-gray-600 mb-1 block">직업</span>
