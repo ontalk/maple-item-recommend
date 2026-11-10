@@ -311,9 +311,9 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
                       <span className="font-semibold text-gray-800">
                         {plan.picks.map((pick) => pick.name).join(' + ')}
                       </span>
-                      {plan.activeTiers.length > 0 && (
+                      {plan.activatedTiers.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {plan.activeTiers.map((label) => (
+                          {plan.activatedTiers.map((label) => (
                             <span
                               key={label}
                               className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600"

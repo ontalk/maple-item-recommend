@@ -64,7 +64,8 @@ export interface PlanEvaluation {
   totalGain: number;
   itemPowerGain: number;
   setPowerGain: number;
-  activeTiers: string[];
+  /** 이 조합으로 새로 발동하는 세트 단계만 */
+  activatedTiers: string[];
   /** 억 메소당 전투력 증가 */
   valuePerEok: number;
   /** 증가분을 주스탯으로 환산한 값 */
@@ -183,6 +184,14 @@ export function evaluatePlan(
   const costEok = picks.reduce((sum, pick) => sum + (Number.isFinite(pick.priceEok) ? pick.priceEok : 0), 0);
   const perMainStat = marginalValues(model).perMainStat;
 
+  // 이미 발동 중인 단계는 빼고, 이 조합으로 새로 켜지는 단계만 남긴다.
+  const currentTiers = new Set(
+    model.activeSets.flatMap((set) => set.tiers.map((count) => `${set.name} ${count}세트`)),
+  );
+  const newTiers = nextSets
+    .flatMap((set) => set.tiers.map((count) => `${set.name} ${count}세트`))
+    .filter((label) => !currentTiers.has(label));
+
   return {
     picks,
     costEok,
@@ -190,7 +199,7 @@ export function evaluatePlan(
     totalGain,
     itemPowerGain,
     setPowerGain: totalGain - itemPowerGain,
-    activeTiers: nextSets.flatMap((set) => set.tiers.map((count) => `${set.name} ${count}세트`)),
+    activatedTiers: newTiers,
     valuePerEok: costEok > 0 ? totalGain / costEok : 0,
     equivalentMainStat: perMainStat > 0 ? totalGain / perMainStat : 0,
   };
