@@ -196,6 +196,11 @@ function bagFromEquipment(items: CharacterItem[]): StatBag {
   return bag;
 }
 
+/** 장비 한 세트의 옵션(고정 옵션 + 잠재)을 스탯 묶음으로 바꾼다. 교체 시 기존 장비 기여분을 빼는 데 쓴다. */
+export function equipmentStatBag(items: CharacterItem[]): StatBag {
+  return bagFromEquipment(items);
+}
+
 function piecesFromItems(items: CharacterItem[]): EquippedPiece[] {
   return items.map((item) => ({
     name: item.item_name || '',

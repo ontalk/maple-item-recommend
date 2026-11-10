@@ -12,6 +12,7 @@ import {
   type PlannedPurchase,
 } from '@/lib/combat-power';
 import { formatStatBag, type ActiveSet } from '@/lib/set-effects';
+import ComboPlanner from '@/components/ComboPlanner';
 
 const SIM_PARTS = [
   '반지', '펜던트', '얼굴장식', '눈장식', '귀고리', '벨트', '어깨장식', '포켓',
@@ -324,6 +325,8 @@ export default function LoadoutSimulator({ items, stats, characterClass, current
           </div>
         </div>
       )}
+
+      <ComboPlanner model={model} items={items} />
 
       {model.rawPower > 0 && Math.abs(model.calibration - 1) > 0.02 && (
         <p className="mt-4 text-[11px] text-gray-400">
