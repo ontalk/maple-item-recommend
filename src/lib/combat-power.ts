@@ -61,6 +61,48 @@ function readStat(finalStat: Array<{ stat_name: string; stat_value: string }>, .
   return 0;
 }
 
+/**
+ * 넥슨 API의 item_total_option / item_base_option 은
+ * { str: "385", attack_power: "1122", boss_damage: "40", ... } 형태의 객체다.
+ * 이 앱이 쓰는 ItemOption[] 형태로 바꿔 준다(이미 배열이면 그대로 통과).
+ */
+const NEXON_OPTION_LABELS: Record<string, string> = {
+  str: 'STR', dex: 'DEX', int: 'INT', luk: 'LUK',
+  max_hp: '최대 HP', max_mp: '최대 MP',
+  attack_power: '공격력', magic_power: '마력',
+  armor: '방어력', speed: '이동속도', jump: '점프력',
+  boss_damage: '보스 몬스터 데미지', ignore_monster_armor: '방어율 무시',
+  all_stat: '올스탯', damage: '데미지', equipment_level_decrease: '착용 레벨 감소',
+};
+
+export function normalizeItemOptions(
+  raw: unknown,
+): Array<{ option_type: string; option_value: string }> {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((option) => option && typeof option === 'object')
+      .map((option: any) => ({
+        option_type: String(option.option_type ?? ''),
+        option_value: String(option.option_value ?? ''),
+      }));
+  }
+
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([, value]) => {
+        if (value === null || value === undefined) return false;
+        const text = String(value).trim();
+        return text !== '' && Number(text) !== 0;
+      })
+      .map(([key, value]) => ({
+        option_type: NEXON_OPTION_LABELS[key] ?? key,
+        option_value: String(value),
+      }));
+  }
+
+  return [];
+}
+
 export function parseFinalStats(finalStat?: Array<{ stat_name: string; stat_value: string }> | null): FinalStats {
   const stats = Array.isArray(finalStat) ? finalStat : [];
   return {
@@ -137,7 +179,7 @@ function bagFromEquipment(items: CharacterItem[]): StatBag {
   const bag: StatBag = {};
 
   for (const item of items) {
-    for (const option of item.item_total_option ?? []) {
+    for (const option of normalizeItemOptions(item.item_total_option)) {
       const label = option.option_type || '';
       const isPercent = label.includes('%');
       const value = toNumber(option.option_value);

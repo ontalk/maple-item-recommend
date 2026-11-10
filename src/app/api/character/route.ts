@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCharacterFullInfo } from '@/lib/maple-api';
 import { generateRecommendations } from '@/lib/recommendation-engine';
-import { parseFinalStats } from '@/lib/combat-power';
+import { normalizeItemOptions, parseFinalStats } from '@/lib/combat-power';
 import type { CharacterItem } from '@/types';
 
 function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
@@ -48,8 +48,9 @@ function convertEquipmentToCharacterItem(equipment: any): CharacterItem {
     item_shape_name: equipment.item_shape_name || '',
     item_shape_icon: equipment.item_shape_icon || '',
     item_gender: equipment.item_gender || '',
-    item_total_option: equipment.item_total_option || [],
-    item_base_option: equipment.item_base_option || [],
+    // 넥슨 API는 이 두 필드를 객체({ str, attack_power, ... })로 주므로 배열로 정규화한다
+    item_total_option: normalizeItemOptions(equipment.item_total_option),
+    item_base_option: normalizeItemOptions(equipment.item_base_option),
     item_exceptional_option: equipment.item_exceptional_option ? [{ option_type: 'exceptional', option_value: equipment.item_exceptional_option }] : [],
     item_potential_option_grade: equipment.item_potential_option_grade || '',
     item_potential_option: potentialArr,
