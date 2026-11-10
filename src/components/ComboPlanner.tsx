@@ -510,7 +510,7 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
               icon={<Target className="h-3.5 w-3.5" />}
               plan={ranked.bestForTarget}
               accent="text-indigo-600"
-              note="목표 전투력 증가를 입력해 주세요."
+              note={targetGain > 0 ? '입력한 목표를 달성하는 조합이 없습니다.' : '목표 전투력 증가를 입력해 주세요.'}
             />
           </div>
 

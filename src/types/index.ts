@@ -181,6 +181,7 @@ export const CLASS_MAIN_STAT: Record<string, string> = {
   '캡틴': 'DEX',
   '바이퍼': 'DEX',
   '캐논슈터': 'DEX',
+  '캐논마스터': 'DEX',
   '스트라이커': 'DEX',
   '카인': 'DEX',
   '아크': 'DEX',

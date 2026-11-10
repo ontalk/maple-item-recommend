@@ -130,14 +130,20 @@ const SUB_STAT_BY_MAIN: Record<StatName, StatName> = {
   str: 'dex', dex: 'str', int: 'luk', luk: 'dex',
 };
 
-function resolveMainStat(characterClass: string): { mainKey: MainStatKey; approximate: boolean } {
+function resolveMainStat(
+  characterClass: string,
+  stats: FinalStats,
+): { mainKey: MainStatKey; approximate: boolean } {
   const mapped = CLASS_MAIN_STAT[characterClass];
   if (mapped === 'HP') return { mainKey: 'maxHp', approximate: true };
-  const main = (mapped || 'STR').split('/')[0].toLowerCase() as StatName;
+  const main = (mapped || '').split('/')[0].toLowerCase() as StatName;
   if (main === 'str' || main === 'dex' || main === 'int' || main === 'luk') {
     return { mainKey: main, approximate: mapped === 'STR/DEX/INT' };
   }
-  return { mainKey: 'str', approximate: true };
+  // 직업 표에 없는 클래스(예: 캐논마스터)는 실제 스탯이 가장 큰 능력치를 주스탯으로 본다.
+  const candidates: StatName[] = ['str', 'dex', 'int', 'luk'];
+  const inferred = candidates.reduce((best, key) => (stats[key] > stats[best] ? key : best), 'str' as StatName);
+  return { mainKey: inferred, approximate: true };
 }
 
 /** 잠재능력 문자열("STR +12%", "보스 몬스터 공격 시 데미지 +30%")을 스탯 키로 분류한다. */
@@ -262,7 +268,7 @@ export function buildCombatModel(
 ): CombatModel | null {
   if (!stats || stats.combatPower <= 0) return null;
 
-  const { mainKey, approximate } = resolveMainStat(characterClass);
+  const { mainKey, approximate } = resolveMainStat(characterClass, stats);
   const mainPctKey = (`${mainKey}Pct`) as StatKey;
   const subKey: StatName | null = mainKey === 'maxHp' ? null : SUB_STAT_BY_MAIN[mainKey];
 
