@@ -8,6 +8,12 @@ import { getAllEquipmentOptions } from '@/lib/equipment-database';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
 import { parseListingStats, type ParsedListing } from '@/lib/auction-listing';
 import {
+  DEFAULT_AUCTION_PROFILE,
+  loadAuctionProfile,
+  saveAuctionProfile,
+  worldNameForId,
+} from '@/lib/auction-profile';
+import {
   EMPTY_ITEM_STATS,
   marginalValues,
   rankPlans,
@@ -39,8 +45,6 @@ type ListingState = {
   rows?: ListingRow[];
   remaining?: number;
 };
-
-const AUCTION_PROFILE_KEY = 'maple-combo-auction-profile';
 
 function itemCategoryFor(part: string) {
   if (part === '훈장' || part === '포켓' || part === '뱃지') return undefined;
@@ -111,36 +115,20 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
   const [selectedKey, setSelectedKey] = useState('');
   const [filter, setFilter] = useState('');
   const [targetEok, setTargetEok] = useState('');
-  const [auction, setAuction] = useState<AuctionProfile>({ accountId: 0, characterId: 0, worldId: 0 });
+  const [auction, setAuction] = useState<AuctionProfile>({ ...DEFAULT_AUCTION_PROFILE });
   const [profileReady, setProfileReady] = useState(false);
   const [listings, setListings] = useState<Record<string, ListingState>>({});
   const [openListings, setOpenListings] = useState<string | null>(null);
 
   // 옥션 연결 정보는 한 번만 입력하도록 브라우저에 저장한다.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(AUCTION_PROFILE_KEY);
-      if (raw) {
-        const stored = JSON.parse(raw) as Partial<AuctionProfile>;
-        setAuction({
-          accountId: Number(stored.accountId) || 0,
-          characterId: Number(stored.characterId) || 0,
-          worldId: Number(stored.worldId) || 0,
-        });
-      }
-    } catch {
-      // 저장 값이 깨졌으면 빈 값으로 시작한다.
-    }
+    setAuction(loadAuctionProfile());
     setProfileReady(true);
   }, []);
 
   useEffect(() => {
     if (!profileReady) return;
-    try {
-      window.localStorage.setItem(AUCTION_PROFILE_KEY, JSON.stringify(auction));
-    } catch {
-      // 저장이 막힌 브라우저에서는 매번 입력해도 동작에 문제 없다.
-    }
+    saveAuctionProfile(auction);
   }, [auction, profileReady]);
 
   const catalog = useMemo(() => {
@@ -343,8 +331,12 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
             />
           </label>
         ))}
+        <span className="rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">
+          {worldNameForId(auction.worldId) ?? '월드 확인 필요'}
+        </span>
         <p className="max-w-xl text-[10px] leading-relaxed text-gray-400">
-          한 번 입력하면 이 브라우저에 저장됩니다. 메이플 옥션에 로그인한 탭과 크롬 확장 프로그램이 필요합니다.
+          World는 서버 번호입니다(스카니아 5 · 크로아 8). 한 번 입력하면 이 브라우저에 저장되고,
+          아래 옥션 자동 추천에도 같이 쓰입니다. 메이플 옥션에 로그인한 탭과 크롬 확장 프로그램이 필요합니다.
         </p>
       </div>
 

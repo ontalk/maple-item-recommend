@@ -1,9 +1,15 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
 import type { BenchmarkComparison, CharacterItem } from '@/types';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
+import {
+  DEFAULT_AUCTION_PROFILE,
+  loadAuctionProfile,
+  saveAuctionProfile,
+  worldNameForId,
+} from '@/lib/auction-profile';
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
 import { buildCombatModel, simulatePurchases, type FinalStats } from '@/lib/combat-power';
 
@@ -342,11 +348,19 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
   combatStats?: FinalStats | null;
 }) {
   const searchLockRef = useRef(false);
-  const [profile, setProfile] = useState<AuctionProfile>({
-    accountId: 0,
-    characterId: 0,
-    worldId: 5,
-  });
+  const [profile, setProfile] = useState<AuctionProfile>({ ...DEFAULT_AUCTION_PROFILE });
+  const [profileReady, setProfileReady] = useState(false);
+
+  // 계획기와 같은 저장소를 써서 연결 정보를 한 번만 입력하면 된다.
+  useEffect(() => {
+    setProfile(loadAuctionProfile());
+    setProfileReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!profileReady) return;
+    saveAuctionProfile(profile);
+  }, [profile, profileReady]);
   const [jobClass, setJobClass] = useState<string>('파이렛'); // 옥션 장비 접미사 기준 직업 선택
   const [budgetEok, setBudgetEok] = useState('20');
   const [targetPowerEok, setTargetPowerEok] = useState('2');
@@ -791,7 +805,12 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-gray-600 mb-1 block">World ID</span>
+            <span className="text-xs font-semibold text-gray-600 mb-1 block">
+              World ID
+              {worldNameForId(profile.worldId) && (
+                <span className="ml-1 font-bold text-maple-orange">{worldNameForId(profile.worldId)}</span>
+              )}
+            </span>
             <input 
               value={profile.worldId || ''} 
               onChange={(event) => setNumber('worldId', event.target.value)} 
