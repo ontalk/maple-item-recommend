@@ -104,8 +104,11 @@ export function searchAuction(profile: AuctionProfile, filters: AuctionSearchFil
       if (messageHandled) return;
       messageHandled = true;
       cleanup();
-      reject(new Error('경매장 확장 프로그램 응답 시간 초과 (30초). Extension 설치 및 옥션 로그인 상태를 확인해주세요.'));
-    }, 120000);
+      reject(new Error(
+        '경매장 확장 프로그램 응답 시간 초과 (45초). PC 크롬에서 확장 프로그램과 옥션 로그인 탭을 확인해 주세요. ' +
+        '휴대폰 브라우저는 크롬 확장을 지원하지 않아 매물 자동 채우기를 쓸 수 없습니다.',
+      ));
+    }, 45000);
 
     const onRuntimeMessage = (response?: AuctionExtensionResponse) => {
       if (messageHandled) return;
