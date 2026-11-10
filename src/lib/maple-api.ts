@@ -157,6 +157,7 @@ export async function getCharacterFullInfo(characterName: string) {
         character_level: basic?.character_level || 0,
         character_image: basic?.character_image || '',
         combat_power: combatPower,
+        final_stat: statData?.final_stat || [],
       },
       equipment: equipment,
     };

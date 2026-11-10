@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Loader2, ShoppingCart, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
-import type { BenchmarkComparison } from '@/types';
+import type { BenchmarkComparison, CharacterItem } from '@/types';
 import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
+import { buildCombatModel, simulatePurchases, type FinalStats } from '@/lib/combat-power';
 
 interface EquipmentSearchResult {
   part: string;
@@ -333,7 +334,13 @@ function isVisibleForJob(equipment: EquipmentOption, jobClass: string, exactJob?
   return !isJobSpecific || equipment.name.includes(JOB_SUFFIX_BY_CLASS[jobClass] || '');
 }
 
-export function AuctionSearch({ benchmark, characterClass, currentCombatPower }: { benchmark?: BenchmarkComparison; characterClass?: string; currentCombatPower?: number | string }) {
+export function AuctionSearch({ benchmark, characterClass, currentCombatPower, characterItems, combatStats }: {
+  benchmark?: BenchmarkComparison;
+  characterClass?: string;
+  currentCombatPower?: number | string;
+  characterItems?: CharacterItem[];
+  combatStats?: FinalStats | null;
+}) {
   const searchLockRef = useRef(false);
   const [profile, setProfile] = useState<AuctionProfile>({
     accountId: 0,
@@ -689,11 +696,30 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
     }
   };
 
+  const loadoutModel = useMemo(
+    () => buildCombatModel(combatStats ?? null, characterItems ?? [], characterClass ?? ''),
+    [combatStats, characterItems, characterClass],
+  );
+
   if (!benchmark) return null;
 
   const isProfileValid = Number.isInteger(profile.accountId) && Number.isInteger(profile.characterId) && Number.isInteger(profile.worldId) && profile.accountId > 0 && profile.characterId > 0 && profile.worldId > 0;
   const selectedCost = optimalSets.reduce((sum, set) => sum + (set.selected.recommendedPrice || 0), 0);
-  const selectedPower = optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
+  const naivePower = optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
+  // 장비를 하나씩 담을 때마다 세트 개수를 다시 세어 전투력을 재계산한다.
+  // 아이템별 전투력 증가량을 단순 합산하면 세트 효과가 빠진다.
+  const setAware = loadoutModel
+    ? simulatePurchases(
+        loadoutModel,
+        characterItems ?? [],
+        optimalSets.map((set) => ({
+          part: set.part,
+          itemName: set.selected.equipment.name,
+          itemPowerGain: set.selected.recommendedPower,
+        })),
+      )
+    : null;
+  const selectedPower = setAware ? setAware.totalGain : naivePower;
   const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
   const currentPower = parseMesos(currentCombatPower);
   const targetPower = Math.max(0, targetPowerTotal - currentPower);
@@ -1105,6 +1131,13 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower }:
                 <p className="text-3xl font-extrabold text-blue-600">
                   +{selectedPower.toLocaleString()}
                 </p>
+                {setAware && setAware.setPowerTotal !== 0 && (
+                  <p className="mt-1 text-xs font-semibold text-gray-500">
+                    아이템 합계 +{naivePower.toLocaleString()} · 세트 효과{' '}
+                    {setAware.setPowerTotal >= 0 ? '+' : ''}
+                    {Math.round(setAware.setPowerTotal).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">📊 평균 효율</p>

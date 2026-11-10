@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import CharacterSearch from '@/components/CharacterSearch';
 import RecommendationResult from '@/components/RecommendationResult';
+import LoadoutSimulator from '@/components/LoadoutSimulator';
 import { AuctionSearch } from '@/components/AuctionSearch';
 
 export default function Home() {
@@ -70,6 +71,20 @@ export default function Home() {
         </div>
       </section>
 
+      {/* 장비 교체 · 세트 효과를 반영한 전투력 시뮬레이션 */}
+      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <LoadoutSimulator
+            items={((searchData.data?.recommendations || []) as any[])
+              .map((recommendation) => recommendation.current_item)
+              .filter(Boolean)}
+            stats={searchData.data?.combat_stats ?? null}
+            characterClass={searchData.data?.character_class ?? ''}
+            currentPower={Number(searchData.data?.combat_power || 0)}
+          />
+        </div>
+      </section>
+
       {/* 로그인된 경매장 탭에서만 실행되는 가격 조회 */}
       {searchData.data?.benchmark && <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-6xl mx-auto">
@@ -80,8 +95,12 @@ export default function Home() {
           <p className="text-gray-600 mb-6 max-w-2xl">목표 전투력 기준의 최소 세팅을 로그인된 메이플 옥션에서 직접 조회해, 실제 매물 가격으로 비교합니다.</p>
           <AuctionSearch
             benchmark={searchData.data.benchmark}
-            characterClass={searchData.data?.basic?.character_class}
+            characterClass={searchData.data?.character_class}
             currentCombatPower={searchData.data?.combat_power}
+            characterItems={((searchData.data?.recommendations || []) as any[])
+              .map((recommendation) => recommendation.current_item)
+              .filter(Boolean)}
+            combatStats={searchData.data?.combat_stats ?? null}
           />
         </div>
       </section>}
