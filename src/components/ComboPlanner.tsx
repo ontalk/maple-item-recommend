@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Plus, Sparkles, Target, Trash2, TrendingUp, Wallet } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, RefreshCw, Sparkles, Target, Trash2, TrendingUp, Wallet } from 'lucide-react';
 import type { CharacterItem } from '@/types';
 import { formatPower, type CombatModel } from '@/lib/combat-power';
 import { getAllEquipmentOptions } from '@/lib/equipment-database';
+import { searchAuction, type AuctionProfile, type AuctionRawItem } from '@/lib/auction-extension';
+import { parseListingStats, type ParsedListing } from '@/lib/auction-listing';
 import {
   EMPTY_ITEM_STATS,
   marginalValues,
@@ -28,6 +30,45 @@ const NUM_FIELDS: Array<{ key: keyof ItemStats; label: string; placeholder: stri
   { key: 'ignoreDefense', label: '방무%', placeholder: '30' },
   { key: 'mainFlat', label: '주스탯', placeholder: '0' },
 ];
+
+type ListingRow = { item: AuctionRawItem; parsed: ParsedListing };
+
+type ListingState = {
+  loading: boolean;
+  error?: string;
+  rows?: ListingRow[];
+  remaining?: number;
+};
+
+const AUCTION_PROFILE_KEY = 'maple-combo-auction-profile';
+
+function itemCategoryFor(part: string) {
+  if (part === '훈장' || part === '포켓' || part === '뱃지') return undefined;
+  if (part === '무기' || part === '보조무기') return { itemDetailCategory: 'WEAPON' };
+  return { itemDetailCategory: 'ARMOR' };
+}
+
+function summarizeStats(stats: ItemStats): string {
+  const rows: string[] = [];
+  const push = (label: string, value: number, suffix = '') => {
+    if (!value) return;
+    rows.push(`${label} +${Math.round(value * 100) / 100}${suffix}`);
+  };
+  push('공', stats.attack);
+  push('주스탯%', stats.mainPct, '%');
+  push('보공', stats.bossDamage, '%');
+  push('크뎀', stats.critDamage, '%');
+  push('방무', stats.ignoreDefense, '%');
+  push('최종뎀', stats.finalDamage, '%');
+  push('데미지', stats.damage, '%');
+  push('주스탯', stats.mainFlat);
+  return rows.join(' · ') || '옵션 인식 실패';
+}
+
+function formatEok(price: number): string {
+  if (!price) return '가격 미확인';
+  return `${(price / 100000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}억`;
+}
 
 function PlanCard({
   title,
@@ -70,6 +111,37 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
   const [selectedKey, setSelectedKey] = useState('');
   const [filter, setFilter] = useState('');
   const [targetEok, setTargetEok] = useState('');
+  const [auction, setAuction] = useState<AuctionProfile>({ accountId: 0, characterId: 0, worldId: 0 });
+  const [profileReady, setProfileReady] = useState(false);
+  const [listings, setListings] = useState<Record<string, ListingState>>({});
+  const [openListings, setOpenListings] = useState<string | null>(null);
+
+  // 옥션 연결 정보는 한 번만 입력하도록 브라우저에 저장한다.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(AUCTION_PROFILE_KEY);
+      if (raw) {
+        const stored = JSON.parse(raw) as Partial<AuctionProfile>;
+        setAuction({
+          accountId: Number(stored.accountId) || 0,
+          characterId: Number(stored.characterId) || 0,
+          worldId: Number(stored.worldId) || 0,
+        });
+      }
+    } catch {
+      // 저장 값이 깨졌으면 빈 값으로 시작한다.
+    }
+    setProfileReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!profileReady) return;
+    try {
+      window.localStorage.setItem(AUCTION_PROFILE_KEY, JSON.stringify(auction));
+    } catch {
+      // 저장이 막힌 브라우저에서는 매번 입력해도 동작에 문제 없다.
+    }
+  }, [auction, profileReady]);
 
   const catalog = useMemo(() => {
     const seen = new Set<string>();
@@ -130,6 +202,63 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
 
   const removeCandidate = (id: string) => {
     setCandidates((current) => current.filter((candidate) => candidate.id !== id));
+  };
+
+  const auctionReady = auction.accountId > 0 && auction.characterId > 0 && auction.worldId > 0;
+
+  const loadListings = async (candidate: CandidateItem) => {
+    if (openListings === candidate.id) {
+      setOpenListings(null);
+      return;
+    }
+    setOpenListings(candidate.id);
+    if (listings[candidate.id]?.rows || listings[candidate.id]?.loading) return;
+
+    if (!auctionReady) {
+      setListings((current) => ({
+        ...current,
+        [candidate.id]: { loading: false, error: '옥션 연결 정보(Account·Character·World ID)를 먼저 입력해 주세요.' },
+      }));
+      return;
+    }
+
+    setListings((current) => ({ ...current, [candidate.id]: { loading: true } }));
+    try {
+      const result = await searchAuction(auction, {
+        keyword: candidate.name,
+        exactMatch: true,
+        limit: 20,
+        itemCategory: itemCategoryFor(candidate.part),
+      });
+      const rows: ListingRow[] = result.data.items
+        .map((item) => ({
+          item,
+          parsed: parseListingStats(item, { mainKey: model.mainKey, attackLabel: model.attackLabel }),
+        }))
+        .filter((row) => row.parsed.price > 0)
+        .sort((left, right) => left.parsed.price - right.parsed.price)
+        .slice(0, 8);
+      setListings((current) => ({
+        ...current,
+        [candidate.id]: { loading: false, rows, remaining: result.remaining },
+      }));
+    } catch (caught) {
+      setListings((current) => ({
+        ...current,
+        [candidate.id]: {
+          loading: false,
+          error: caught instanceof Error ? caught.message : '옥션 매물을 불러오지 못했습니다.',
+        },
+      }));
+    }
+  };
+
+  const applyListing = (id: string, row: ListingRow) => {
+    updateCandidate(id, {
+      priceEok: Math.round(row.parsed.priceEok * 100) / 100,
+      stats: row.parsed.stats,
+    });
+    setOpenListings(null);
   };
 
   const topPlans = ranked.plans.slice(0, 8);
@@ -196,6 +325,29 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
         </button>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+        <p className="text-[11px] font-bold text-gray-600">🔌 옥션 연결</p>
+        {([
+          { key: 'accountId', label: 'Account' },
+          { key: 'characterId', label: 'Character' },
+          { key: 'worldId', label: 'World' },
+        ] as const).map((field) => (
+          <label key={field.key} className="flex flex-col gap-0.5 text-[10px] font-semibold text-gray-500">
+            {field.label}
+            <input
+              value={auction[field.key] || ''}
+              onChange={(event) => setAuction((current) => ({ ...current, [field.key]: Number(event.target.value) || 0 }))}
+              inputMode="numeric"
+              placeholder="ID"
+              className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-right text-xs font-semibold text-gray-900 outline-none focus:border-maple-orange"
+            />
+          </label>
+        ))}
+        <p className="max-w-xl text-[10px] leading-relaxed text-gray-400">
+          한 번 입력하면 이 브라우저에 저장됩니다. 메이플 옥션에 로그인한 탭과 크롬 확장 프로그램이 필요합니다.
+        </p>
+      </div>
+
       {candidates.length === 0 ? (
         <p className="mt-5 rounded-xl border border-dashed border-indigo-200 bg-white/60 py-8 text-center text-sm text-gray-400">
           후보 장비를 추가하고 옵션·가격을 입력하면 조합별 예상 전투력과 가성비를 비교해 드립니다.
@@ -245,6 +397,60 @@ export default function ComboPlanner({ model, items }: { model: CombatModel; ite
                     />
                   </label>
                 ))}
+              </div>
+
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => loadListings(candidate)}
+                  className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${listings[candidate.id]?.loading ? 'animate-spin' : ''}`} />
+                  옥션 매물에서 채우기
+                </button>
+
+                {openListings === candidate.id && (
+                  <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    {listings[candidate.id]?.loading && (
+                      <p className="text-xs text-gray-500">옥션에서 매물을 불러오는 중…</p>
+                    )}
+                    {listings[candidate.id]?.error && (
+                      <p className="text-xs font-semibold text-red-500">{listings[candidate.id]?.error}</p>
+                    )}
+                    {listings[candidate.id]?.rows?.length === 0 && (
+                      <p className="text-xs text-gray-500">조건에 맞는 매물을 찾지 못했습니다.</p>
+                    )}
+                    {listings[candidate.id]?.rows?.map((row) => (
+                      <div
+                        key={`${row.item.itemName}-${row.parsed.price}`}
+                        className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 py-1.5 last:border-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800">
+                            {formatEok(row.parsed.price)}
+                            <span className="ml-2 font-medium text-gray-500">{summarizeStats(row.parsed.stats)}</span>
+                          </p>
+                          <p className="truncate text-[10px] text-gray-400">
+                            {row.parsed.lines.map((line) => line.text).join(' / ') || '툴팁 옵션 없음'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => applyListing(candidate.id, row)}
+                          className="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-gray-700"
+                        >
+                          이 매물로 채우기
+                        </button>
+                      </div>
+                    ))}
+                    <p className="mt-1.5 text-[10px] leading-relaxed text-gray-400">
+                      잠재·에디셔널·추옵의 수치를 합쳐 채웁니다. 스타포스 공격력은 툴팁 숫자 필드에 있을 때만 더해지고,
+                      방무는 참고용으로만 들어갑니다(전투력 공식 미반영).
+                      {listings[candidate.id]?.remaining !== undefined &&
+                        ` 오늘 남은 검색 ${listings[candidate.id]?.remaining}회`}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           ))}
