@@ -24,6 +24,10 @@
     this.message = message;
   }
 
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function resolveUrl(input) {
     try {
       const raw = typeof input === 'string' ? input : (input && input.url) || '';
