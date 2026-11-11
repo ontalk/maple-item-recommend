@@ -1,10 +1,10 @@
 // 페이지 컨텍스트에서 실행되는 스크립트 (CSP 제한 없음)
 //
 // 왜 직접 API를 호출하지 않는가:
-// api.mskr.nexon.com 의 검색 API 를 확장이 직접 호출하면 Nexon 이 HTTP 426 +
-// {"code":6013} 로 응답하고 로그인 세션을 끊어버린다(비정상 클라이언트 차단).
-// 그래서 공식 페이지의 검색 UI 를 조작하고, 그 요청의 응답만 가로채서 쓴다.
-// 다음 페이지는 공식 페이저 클릭 → 실패하면 URL 의 page 파라미터로 이동한다.
+// 검색 API 를 확장이 직접 호출하면 Nexon 이 HTTP 426 + {"code":6013} 로 응답하고
+// 로그인 세션을 끊어버린다(비정상 클라이언트 차단). 그래서 공식 페이지의 검색 UI 를
+// 조작하고, 그 요청의 응답만 가로채서 쓴다. 다음 페이지는 공식 페이저를 누르거나
+// URL 의 page 파라미터로 이동한다.
 (function() {
   if (window.__mapleAuctionPageScriptInstalled) {
     console.warn('⚠️ Maple Auction page script already installed');
@@ -17,40 +17,56 @@
   const PAGE_CAPTURE_TIMEOUT_MS = 7000;
   const SEARCH_BUTTON_FALLBACK_MS = 1200;
 
-  // 공식 페이지가 스스로 보낸 검색 응답을 여기에 보관한다.
   let lastToolTipCapture = null;
-  // 현재 공식 화면이 어떤 검색어의 몇 페이지를 보여주고 있는지.
   let uiState = { keyword: '', page: 0, totalPages: 0 };
 
-  // 다음 페이지를 받지 못했을 때 "여기서 멈추고 지금까지 결과로 마무리"를 알리는 신호.
   function StopPaging(message) {
     this.message = message;
   }
 
-  function isToolTipUrl(url) {
-    return typeof url === 'string'
-      && url.includes('api.mskr.nexon.com')
-      && url.includes('tool-tip');
+  function resolveUrl(input) {
+    try {
+      const raw = typeof input === 'string' ? input : (input && input.url) || '';
+      if (!raw) return '';
+      return new URL(raw, window.location.href).href;
+    } catch (error) {
+      return '';
+    }
   }
 
-  // 공식 페이지의 fetch 를 가로채 응답 JSON 을 복사해 둔다(페이지 동작은 그대로).
+  // 호스트가 아니라 경로로 판별한다(상대경로 · 프록시 · XHR 모두 대응).
+  function isToolTipUrl(url) {
+    if (!url) return false;
+    return url.includes('tool-tip') && url.includes('/searches');
+  }
+
+  function rememberCapture(url, data) {
+    if (!data) return;
+    const hasItems = Array.isArray(data.items);
+    const hasTotal = typeof data.total === 'number';
+    if (!hasItems && !hasTotal) return;
+    lastToolTipCapture = { at: Date.now(), url, data };
+    console.log(`📦 옥션 응답 가로채기: ${data.total ?? data.items?.length ?? 0}개`, url.slice(0, 90));
+  }
+
+  // 1) fetch 가로채기
   try {
     const originalFetch = window.fetch;
     if (typeof originalFetch === 'function') {
       window.fetch = function(input, init) {
-        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        const url = resolveUrl(input);
         const result = originalFetch.apply(this, arguments);
 
         try {
           if (isToolTipUrl(url)) {
             result.then((response) => {
-              if (!response || !response.ok) return null;
-              return response.clone().json().then((data) => {
-                if (data && (Array.isArray(data.items) || typeof data.total === 'number')) {
-                  lastToolTipCapture = { at: Date.now(), url, data };
-                  console.log(`📦 옥션 응답 가로채기: ${data.total ?? data.items?.length ?? 0}개`);
-                }
-              }).catch(() => null);
+              if (!response || !response.ok) {
+                console.warn('⚠️ 옥션 응답 실패:', response && response.status, url.slice(0, 90));
+                return null;
+              }
+              return response.clone().json()
+                .then((data) => rememberCapture(url, data))
+                .catch(() => null);
             }).catch(() => null);
           }
         } catch (error) {
@@ -62,6 +78,47 @@
     }
   } catch (error) {
     console.warn('🪝 fetch 가로채기 설치 실패:', error);
+  }
+
+  // 2) XHR 가로채기 (페이지가 axios/XHR 을 쓰는 경우)
+  try {
+    const OriginalXHR = window.XMLHttpRequest;
+    if (OriginalXHR && OriginalXHR.prototype) {
+      const originalOpen = OriginalXHR.prototype.open;
+      const originalSend = OriginalXHR.prototype.send;
+
+      OriginalXHR.prototype.open = function(method, url) {
+        try {
+          this.__mapleUrl = resolveUrl(url);
+        } catch (error) {
+          this.__mapleUrl = '';
+        }
+        return originalOpen.apply(this, arguments);
+      };
+
+      OriginalXHR.prototype.send = function() {
+        try {
+          if (isToolTipUrl(this.__mapleUrl)) {
+            this.addEventListener('load', () => {
+              try {
+                const text = this.responseType === '' || this.responseType === 'text'
+                  ? this.responseText
+                  : JSON.stringify(this.response);
+                if (!text) return;
+                rememberCapture(this.__mapleUrl, JSON.parse(text));
+              } catch (error) {
+                // 파싱 실패는 무시
+              }
+            });
+          }
+        } catch (error) {
+          // 무시
+        }
+        return originalSend.apply(this, arguments);
+      };
+    }
+  } catch (error) {
+    console.warn('🪝 XHR 가로채기 설치 실패:', error);
   }
 
   function findSearchInput() {
@@ -117,7 +174,6 @@
     ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   }
 
-  /** 페이저일 가능성이 높은 요소부터 훑어 "다음" 버튼을 찾는다. */
   function findNextPageButton() {
     const scoped = Array.from(document.querySelectorAll(
       '[class*="pagination"], [class*="paging"], [class*="pageNum"], [class*="page-num"], [class*="pager"], nav',
@@ -146,7 +202,6 @@
     return true;
   }
 
-  /** 페이저 클릭이 안 되면 URL 의 page 파라미터를 바꿔 라우터를 움직인다. */
   function goToPageViaUrl(page) {
     try {
       const url = new URL(window.location.href);
@@ -195,7 +250,6 @@
     };
   }
 
-  /** 검색어를 처음부터 검색해 1페이지를 받는다. */
   async function searchFirstPage(keyword) {
     const input = findSearchInput();
     if (!input) {
@@ -241,7 +295,6 @@
     }
   }
 
-  /** 다음 페이지로 이동한다(페이저 클릭 → URL 파라미터 순). */
   async function searchNextPage() {
     const nextPage = uiState.page + 1;
     lastToolTipCapture = null;
@@ -249,22 +302,19 @@
 
     let triggered = clickNextPage();
     if (!triggered) triggered = goToPageViaUrl(nextPage);
-    if (!triggered) {
-      throw new StopPaging('옥션 다음 페이지 버튼을 찾지 못했습니다.');
-    }
+    if (!triggered) throw new StopPaging('옥션 다음 페이지 버튼을 찾지 못했습니다.');
 
-    let data;
-    try {
-      data = await waitForCapture(startedAt, PAGE_CAPTURE_TIMEOUT_MS, '옥션 다음 페이지 응답을 받지 못했습니다.');
-    } catch (error) {
-      // 페이저 클릭은 됐는데 응답이 없으면 URL 방식으로 한 번 더 시도한다.
+    let data = await waitForCapture(startedAt, PAGE_CAPTURE_TIMEOUT_MS).catch(() => null);
+
+    if (!data) {
       lastToolTipCapture = null;
       const retryAt = Date.now();
-      if (!goToPageViaUrl(nextPage) || !(await waitForCapture(retryAt, PAGE_CAPTURE_TIMEOUT_MS).catch(() => null))) {
-        throw new StopPaging('옥션 다음 페이지 응답을 받지 못했습니다.');
+      if (goToPageViaUrl(nextPage)) {
+        data = await waitForCapture(retryAt, PAGE_CAPTURE_TIMEOUT_MS).catch(() => null);
       }
-      data = lastToolTipCapture.data;
     }
+
+    if (!data) throw new StopPaging('옥션 다음 페이지 응답을 받지 못했습니다.');
 
     const normalized = normalizePage(data, nextPage);
     uiState = { ...uiState, page: nextPage, totalPages: normalized.totalPages };
@@ -289,11 +339,10 @@
       }
     } catch (error) {
       if (error instanceof StopPaging) {
-        // 다음 페이지를 못 받으면 지금까지 모은 결과로 조용히 마무리한다.
         console.warn('⚠️ 다음 페이지를 받지 못해 여기서 마무리합니다:', error.message);
         if (lastToolTipCapture) {
           const normalized = normalizePage(lastToolTipCapture.data, uiState.page);
-          return { ...normalized, totalPages: uiState.page, hasNext: false, total: normalized.total };
+          return { ...normalized, totalPages: uiState.page, hasNext: false };
         }
       }
       throw error;
