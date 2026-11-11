@@ -317,13 +317,11 @@ function optimizeEquipmentSet(
           return leftGap - rightGap ||
             (right.power / Math.max(right.cost, 1)) - (left.power / Math.max(left.cost, 1));
         }
-        const leftScore = targetPower > 0 && left.power >= targetPower
-          ? 1_000_000_000_000 - left.cost
-          : left.power / Math.max(left.cost, 1);
-        const rightScore = targetPower > 0 && right.power >= targetPower
-          ? 1_000_000_000_000 - right.cost
-          : right.power / Math.max(right.cost, 1);
-        return rightScore - leftScore;
+        // 목표 전투력이 없을 때의 목적은 '예산 내 최대 전투력'이다.
+        // 예전에는 효율(전투력/가격)로 상위 상태만 남겨서, 값이 싼 부위를 더 담은
+        // 조합이 평균 효율 하락으로 잘려나갔다(예: 13부위 중 9부위만 선택).
+        // 이제는 전투력 순으로 남기고, 같으면 저렴한 쪽을 남긴다.
+        return right.power - left.power || left.cost - right.cost;
       })
       .slice(0, 3000);
   }
@@ -742,6 +740,22 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
         }
       } else {
         setProgress(`✓ 최적 조합 계산 완료! ${optimizedSets.length}개 부위 · ${formatMesos(optimized.cost)} 사용 · 전투력 +${optimized.power.toLocaleString()}`);
+      }
+
+      // 왜 일부 부위가 빠졌는지 화면 로그로 바로 확인할 수 있게 남긴다.
+      if (optimizedSets.length > 0) {
+        const optimizedParts = new Set(optimizedSets.map((set) => set.part.replace(/\s*\d+$/, '')));
+        const missingParts = Object.keys(candidatesByPart).filter((part) => !optimizedParts.has(part));
+        if (missingParts.length) {
+          const details = missingParts.map((part) => {
+            const candidates = candidatesByPart[part] || [];
+            const priced = candidates.filter((candidate) => (candidate.recommendedPrice || 0) > 0).length;
+            return `${part}(후보 ${candidates.length}개, 가격확인 ${priced}개)`;
+          });
+          console.log(`  └─ ⚠️ 최적 조합에서 빠진 부위 ${missingParts.length}개: ${details.join(', ')}`);
+        }
+        const withListing = optimizedSets.filter((set) => set.selected.topItem).length;
+        console.log(`  └─ 조합 ${optimizedSets.length}부위 · 매물 옵션 확인 ${withListing}부위`);
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '옥션 검색에 실패했습니다.');
@@ -1224,7 +1238,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 </p>
                 {combinedPlan && (
                   <p className="mt-1 text-xs font-semibold text-gray-500">
-                    아이템 단독 합 +{(combinedPlan.naivePowerGain || naivePower).toLocaleString()} · 세트 효과{' '}
+                    아이템 단독 합 +{combinedPlan.naivePowerGain.toLocaleString()} · 세트 효과{' '}
                     {combinedPlan.setPowerGain >= 0 ? '+' : ''}
                     {Math.round(combinedPlan.setPowerGain).toLocaleString()} · 최종{' '}
                     {loadoutModel ? formatPower(loadoutModel.apiPower) : '-'} →{' '}
