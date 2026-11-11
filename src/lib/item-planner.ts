@@ -205,6 +205,113 @@ export function evaluatePlan(
   };
 }
 
+export interface AuctionPick extends CandidateItem {
+  /** 넥슨이 알려준 이 매물의 단독 전투력 증가량(현재 장비 대비) */
+  powerGain: number;
+}
+
+export interface AuctionPlanEvaluation {
+  picks: AuctionPick[];
+  costEok: number;
+  finalPower: number;
+  totalGain: number;
+  /** 매물별 단독 증가량을 그대로 더한 값(중첩 미반영) */
+  naivePowerGain: number;
+  /** 매물 옵션을 한꺼번에 적용했을 때의 아이템 기여분 */
+  itemPowerGain: number;
+  /** 세트 효과 기여분 */
+  setPowerGain: number;
+  /** 옵션을 읽지 못해 환산 주스탯으로 대체한 매물 이름 */
+  approximated: string[];
+}
+
+function scaleBag(bag: StatBag, factor: number): StatBag {
+  const scaled: StatBag = {};
+  for (const [key, value] of Object.entries(bag)) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric !== 0) scaled[key as StatKey] = numeric * factor;
+  }
+  return scaled;
+}
+
+/**
+ * 옵션 벡터의 크기를 조절해 "게임이 알려준 그 매물의 단독 전투력 증가"와 맞춘다.
+ * 옥션 툴팁에서 일부 옵션을 못 읽어도 증가 폭은 게임 값과 같아지고,
+ * 여러 매물을 함께 적용할 때의 % 중첩은 벡터 구성대로 반영된다.
+ */
+function calibrateBag(model: CombatModel, bag: StatBag, target: number): StatBag {
+  const deltaOf = (factor: number) => powerWithDelta(model, scaleBag(bag, factor)) - model.apiPower;
+  if (!(target > 0)) return bag;
+
+  let low = 0.05;
+  let high = 1;
+  for (let i = 0; i < 40 && deltaOf(high) < target; i += 1) high *= 2;
+  if (deltaOf(high) < target) return scaleBag(bag, high);
+  for (let i = 0; i < 40 && deltaOf(low) > target && low > 1e-4; i += 1) low /= 2;
+
+  for (let i = 0; i < 60; i += 1) {
+    const mid = (low + high) / 2;
+    if (deltaOf(mid) < target) low = mid;
+    else high = mid;
+  }
+  return scaleBag(bag, (low + high) / 2);
+}
+
+/**
+ * 옥션 매물 여러 개를 같이 샀을 때의 최종 전투력.
+ *
+ * 매물별 단독 증가량(넥슨이 표시하는 전투력증가)은 이미 "현재 장비 교체 효과"를
+ * 포함한 값이라, 착용 장비 옵션을 다시 빼면 이중 차감이 된다. 그래서 장비 옵션은
+ * 빼지 않고, 단독 증가량과 같아지도록 각 매물의 옵션 벡터만 보정한 뒤
+ * 모든 매물과 세트 효과를 한 번에 적용해 다시 계산한다.
+ */
+export function evaluateAuctionPlan(
+  model: CombatModel,
+  items: CharacterItem[],
+  picks: AuctionPick[],
+): AuctionPlanEvaluation {
+  const nextSets = resolveSetBonuses(piecesFor(items, picks));
+  const setBag = mergeBags(totalSetEffects(nextSets), negateBag(totalSetEffects(model.activeSets)));
+
+  const approximated: string[] = [];
+  const perMainStat = marginalValues(model).perMainStat;
+  let naivePowerGain = 0;
+  let itemBag: StatBag = {};
+
+  for (const pick of picks) {
+    naivePowerGain += pick.powerGain;
+    const raw = statsToBag(model, pick.stats);
+    const hasVector = Object.values(raw).some((value) => Math.abs(Number(value) || 0) > 0);
+
+    if (hasVector) {
+      itemBag = mergeBags(itemBag, calibrateBag(model, raw, pick.powerGain));
+      continue;
+    }
+
+    // 옵션을 전혀 못 읽은 매물은 환산 주스탯으로만 반영한다(중첩 효과는 못 살림).
+    approximated.push(pick.name);
+    if (perMainStat > 0 && pick.powerGain > 0) {
+      itemBag = mergeBags(itemBag, { [model.mainKey]: pick.powerGain / perMainStat } as StatBag);
+    }
+  }
+
+  const finalPower = powerWithDelta(model, mergeBags(itemBag, setBag));
+  const itemPowerGain = powerWithDelta(model, itemBag) - model.apiPower;
+  const totalGain = finalPower - model.apiPower;
+  const costEok = picks.reduce((sum, pick) => sum + (Number.isFinite(pick.priceEok) ? pick.priceEok : 0), 0);
+
+  return {
+    picks,
+    costEok,
+    finalPower,
+    totalGain,
+    naivePowerGain,
+    itemPowerGain,
+    setPowerGain: totalGain - itemPowerGain,
+    approximated,
+  };
+}
+
 export interface RankedPlans {
   plans: PlanEvaluation[];
   bestPower: PlanEvaluation | null;

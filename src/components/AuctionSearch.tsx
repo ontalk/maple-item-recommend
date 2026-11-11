@@ -14,7 +14,7 @@ import {
 } from '@/lib/auction-profile';
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
 import { buildCombatModel, formatPower, type FinalStats } from '@/lib/combat-power';
-import { evaluatePlan, type CandidateItem } from '@/lib/item-planner';
+import { evaluateAuctionPlan, type AuctionPick } from '@/lib/item-planner';
 import { parseListingStats } from '@/lib/auction-listing';
 
 interface EquipmentSearchResult {
@@ -768,10 +768,10 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
   // 한꺼번에 적용해 최종 전투력을 다시 계산한다(환산 주스탯 방식).
   // 그래서 '거공 500만 + 몽벨 700만'의 단순 합과 실제 세트 착용 후 증가분이 달라진다.
   const combinedPlan = loadoutModel
-    ? evaluatePlan(
+    ? evaluateAuctionPlan(
         loadoutModel,
         characterItems ?? [],
-        optimalSets.flatMap<CandidateItem>((set) => {
+        optimalSets.flatMap<AuctionPick>((set) => {
           const topItem = set.selected.topItem;
           if (!topItem) return [];
           const parsed = parseListingStats(topItem, {
@@ -784,6 +784,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             name: set.selected.equipment.name,
             priceEok: parsed.priceEok,
             stats: parsed.stats,
+            powerGain: set.selected.recommendedPower,
           }];
         }),
       )
@@ -1223,7 +1224,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 </p>
                 {combinedPlan && (
                   <p className="mt-1 text-xs font-semibold text-gray-500">
-                    아이템 단독 합 +{naivePower.toLocaleString()} · 세트 효과{' '}
+                    아이템 단독 합 +{(combinedPlan.naivePowerGain || naivePower).toLocaleString()} · 세트 효과{' '}
                     {combinedPlan.setPowerGain >= 0 ? '+' : ''}
                     {Math.round(combinedPlan.setPowerGain).toLocaleString()} · 최종{' '}
                     {loadoutModel ? formatPower(loadoutModel.apiPower) : '-'} →{' '}
@@ -1240,7 +1241,8 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             </div>
             <p className="mt-4 text-xs font-semibold leading-relaxed text-gray-500">
               최종 전투력은 고른 매물들의 옵션과 세트 효과를 현재 스탯에 한꺼번에 적용해 다시 계산한 값입니다.
-              스탯·공격력 % 중첩과 세트 효과 때문에 &lsquo;단독 증가&rsquo;를 단순히 더한 값과 달라질 수 있습니다.
+              매물별 &lsquo;단독 증가&rsquo;는 게임이 표시하는 전투력증가와 맞췄고, 여러 개를 함께 끼면 스탯·공격력 %와
+              세트 효과가 중첩되어 단순 합보다 커집니다.
             </p>
           </div>
 
