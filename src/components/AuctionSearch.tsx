@@ -71,6 +71,28 @@ function toOptionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/** 숫자 후보 중 처음 나오는 유효값 */
+function firstDefinedNumber(...values: Array<number | undefined>): number | undefined {
+  return values.find((value) => value !== undefined);
+}
+
+/** "18성", "최대 22성" 같은 설명에서 첫 숫자만 뽑는다. */
+function parseNumberFromText(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : undefined;
+}
+
+/** "레전드리"·"유니크" 같은 등급 문구를 숫자 등급으로 바꾼다. */
+function parseGradeFromText(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  if (value.includes('레전드리')) return 4;
+  if (value.includes('유니크')) return 3;
+  if (value.includes('에픽')) return 2;
+  if (value.includes('레어')) return 1;
+  return undefined;
+}
+
 function formatMesos(value: number | null): string {
   if (value === null) return '매물 없음';
   if (value >= 100000000) return `${(value / 100000000).toFixed(1)}억`;
@@ -217,16 +239,24 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
     cuttableCount?: number;
     etcOption?: { cuttableCount?: number; cuttableCountRemaining?: number };
   };
-  const starforce = toOptionalNumber(
-    tooltip?.upgradeInfo?.starForce?.current ?? tooltip?.starforce ?? item.starforce,
+  // 매물마다 툴팁 위치가 조금씩 달라서 숫자 필드 → "18성" 문자열 순으로 찾는다.
+  const starforce = firstDefinedNumber(
+    toOptionalNumber(tooltip?.upgradeInfo?.starForce?.current),
+    toOptionalNumber(tooltip?.starforce),
+    toOptionalNumber(item.starforce),
+    parseNumberFromText(tooltip?.upgradeInfo?.starForce?.description),
   );
-  const potentialGrade = toOptionalNumber(
-    tooltip?.upgradeInfo?.potential?.grade ?? rawItem.potentialGrade ?? rawItem.potential?.grade,
+  const potentialGrade = firstDefinedNumber(
+    toOptionalNumber(tooltip?.upgradeInfo?.potential?.grade),
+    toOptionalNumber(rawItem.potentialGrade),
+    toOptionalNumber(rawItem.potential?.grade),
+    parseGradeFromText(tooltip?.upgradeInfo?.potential?.description),
   );
-  const additionalPotentialGrade = toOptionalNumber(
-    tooltip?.upgradeInfo?.additionalPotential?.grade ??
-      rawItem.additionalPotentialGrade ??
-      rawItem.additionalPotential?.grade,
+  const additionalPotentialGrade = firstDefinedNumber(
+    toOptionalNumber(tooltip?.upgradeInfo?.additionalPotential?.grade),
+    toOptionalNumber(rawItem.additionalPotentialGrade),
+    toOptionalNumber(rawItem.additionalPotential?.grade),
+    parseGradeFromText(tooltip?.upgradeInfo?.additionalPotential?.description),
   );
   const cuttableCount = getCuttableCount(item);
   const minPrice = toNumber(filters.minPrice);
@@ -240,10 +270,12 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
 
   if (minPrice > 0 && price < minPrice) return false;
   if (maxPrice > 0 && price > maxPrice) return false;
-  if (!ignoreStarforce && minStarforce > 0 && starforce !== undefined && starforce < minStarforce) return false;
-  if (!ignoreStarforce && maxStarforce > 0 && starforce !== undefined && starforce > maxStarforce) return false;
-   if (!ignoreEnhancementGrades && minPotentialGrade > 0 && potentialGrade !== undefined && potentialGrade < minPotentialGrade) return false;
-  if (!ignoreEnhancementGrades && minAdditionalPotentialGrade > 0 && additionalPotentialGrade !== undefined && additionalPotentialGrade < minAdditionalPotentialGrade) return false;
+  // 조건을 입력했으면 값을 확인할 수 없는 매물은 통과시키지 않는다.
+  // (예전에는 넥슨 서버가 별/등급으로 걸러 줬지만, 지금은 공식 화면 검색이라 로컬에서 걸러야 한다.)
+  if (!ignoreStarforce && minStarforce > 0 && (starforce === undefined || starforce < minStarforce)) return false;
+  if (!ignoreStarforce && maxStarforce > 0 && (starforce === undefined || starforce > maxStarforce)) return false;
+  if (!ignoreEnhancementGrades && minPotentialGrade > 0 && (potentialGrade === undefined || potentialGrade < minPotentialGrade)) return false;
+  if (!ignoreEnhancementGrades && minAdditionalPotentialGrade > 0 && (additionalPotentialGrade === undefined || additionalPotentialGrade < minAdditionalPotentialGrade)) return false;
   if (minCuttableCount > 0 && cuttableCount !== undefined && cuttableCount < minCuttableCount) return false;
   if (maxCuttableCount > 0 && cuttableCount !== undefined && cuttableCount > maxCuttableCount) return false;
   return true;
@@ -580,6 +612,9 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             }
             
             const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters, ignoreStarforce, ignoreEnhancementGrades));
+            console.log(
+              `  └─ 조건 통과 ${filteredItems.length}/${allItems.length}개 (최소 스타포스 ${auctionFilters.minStarforce || '없음'}, 최대 ${auctionFilters.maxStarforce || '없음'})`,
+            );
 
             if (filteredItems.length === 0) {
               console.log(`  └─ ⚠️ ${equipment.name}: 조건 통과 매물 없음 (수집 ${allItems.length}개)`);
