@@ -210,6 +210,14 @@
     return setNumberFilter(pattern, minValue || maxValue);
   }
 
+  function readNumberFilter(pattern) {
+    const row = filterRowOf(pattern);
+    const input = row && row.querySelector('input');
+    if (!input) return undefined;
+    const digits = String(input.value || '').replace(/[^0-9]/g, '');
+    return digits ? Number(digits) : undefined;
+  }
+
   function setGradeFilter(pattern, grade, exclude) {
     const label = GRADE_TEXT[Number(grade)];
     if (!label) return false;
@@ -228,7 +236,7 @@
    * 이렇게 하면 서버가 처음부터 조건에 맞는 매물만 돌려주므로
    * 18성 미만을 전 페이지에서 긁어온 뒤 거르는 낭비가 사라진다.
    */
-  function applyOfficialFilters(filters) {
+  async function applyOfficialFilters(filters) {
     const applied = [];
     if (!filters) return applied;
 
@@ -248,6 +256,17 @@
     }
     if (setGradeFilter(/에디셔널/, filters.minAdditionalPotentialGrade)) {
       applied.push(`에디 ${GRADE_TEXT[Number(filters.minAdditionalPotentialGrade)]}`);
+    }
+
+    // 값 입력 직후 바로 클릭하면 화면(리액트) 상태가 반영되기 전에 검색이 나가
+    // 필터 없이 전 매물을 긁게 된다. 잠시 기다렸다가 값이 들어갔는지 확인한다.
+    if (applied.length) {
+      await delay(300);
+      if (minStar > 0 && readNumberFilter(/스타포스/) !== minStar) {
+        console.warn('🎛️ 스타포스 값이 반영되지 않아 다시 입력합니다.');
+        setRangeFilter(/스타포스/, minStar, maxStar);
+        await delay(250);
+      }
     }
 
     return applied;
@@ -348,7 +367,7 @@
     uiState = { keyword: '', page: 0, totalPages: 0 };
 
     // 조건을 공식 필터에 넣고 '필터 검색'을 누르면 서버가 걸러서 준다.
-    const appliedFilters = applyOfficialFilters(filters);
+    const appliedFilters = await applyOfficialFilters(filters);
     if (appliedFilters.length) console.log('🎛️ 옥션 필터 적용:', appliedFilters.join(', '));
 
     const startedAt = Date.now();
@@ -375,6 +394,9 @@
       }
 
       const normalized = normalizePage(data, 1);
+      if (appliedFilters.length) {
+        console.log(`📊 필터 적용 후 서버 응답: ${normalized.total}건 (${normalized.totalPages}페이지)`);
+      }
       uiState = { keyword, page: 1, totalPages: normalized.totalPages };
       return normalized;
     } finally {
