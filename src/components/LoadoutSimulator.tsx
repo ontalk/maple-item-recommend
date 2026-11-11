@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { Plus, RefreshCw, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import type { CharacterItem } from '@/types';
 import { getAllEquipmentOptions } from '@/lib/equipment-database';
 import {
@@ -12,12 +12,46 @@ import {
   type PlannedPurchase,
 } from '@/lib/combat-power';
 import { formatStatBag, type ActiveSet } from '@/lib/set-effects';
+import { searchAuction, type AuctionRawItem } from '@/lib/auction-extension';
+import { parseListingStats, type ParsedListing } from '@/lib/auction-listing';
+import { evaluatePlan, type CandidateItem } from '@/lib/item-planner';
+import { loadAuctionProfile } from '@/lib/auction-profile';
 import ComboPlanner from '@/components/ComboPlanner';
 
 const SIM_PARTS = [
   '반지', '펜던트', '얼굴장식', '눈장식', '귀고리', '벨트', '어깨장식', '포켓',
   '기계 심장', '엠블렘', '뱃지', '훈장', '모자', '상의', '하의', '장갑', '신발', '망토', '무기',
 ];
+
+type ListingRow = { item: AuctionRawItem; parsed: ParsedListing };
+type ListingState = { loading: boolean; error?: string; rows?: ListingRow[] };
+
+function itemCategoryFor(part: string) {
+  if (part === '훈장' || part === '포켓' || part === '뱃지') return undefined;
+  if (part === '무기' || part === '보조무기') return { itemDetailCategory: 'WEAPON' };
+  return { itemDetailCategory: 'ARMOR' };
+}
+
+function summarizeListingStats(stats: ParsedListing['stats']): string {
+  const rows: string[] = [];
+  const push = (label: string, value: number, suffix = '') => {
+    if (!value) return;
+    rows.push(`${label} +${Math.round(value * 100) / 100}${suffix}`);
+  };
+  push('공', stats.attack);
+  push('주스탯%', stats.mainPct, '%');
+  push('보공', stats.bossDamage, '%');
+  push('크뎀', stats.critDamage, '%');
+  push('방무', stats.ignoreDefense, '%');
+  push('최종뎀', stats.finalDamage, '%');
+  push('주스탯', stats.mainFlat);
+  return rows.join(' · ') || '옵션 인식 실패';
+}
+
+function formatListingPrice(price: number): string {
+  if (!price) return '가격 미확인';
+  return `${(price / 100000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}억`;
+}
 
 interface LoadoutSimulatorProps {
   items: CharacterItem[];
@@ -50,6 +84,8 @@ export default function LoadoutSimulator({ items, stats, characterClass, current
   const [purchases, setPurchases] = useState<PlannedPurchase[]>([]);
   const [selectedKey, setSelectedKey] = useState('');
   const [filter, setFilter] = useState('');
+  const [listings, setListings] = useState<Record<string, ListingState>>({});
+  const [openListings, setOpenListings] = useState<string | null>(null);
 
   const model = useMemo(
     () => buildCombatModel(stats, items, characterClass),
@@ -101,6 +137,78 @@ export default function LoadoutSimulator({ items, stats, characterClass, current
 
   const removePurchase = (index: number) => {
     setPurchases((current) => current.filter((_, purchaseIndex) => purchaseIndex !== index));
+  };
+
+  const listingKey = (purchase: PlannedPurchase) => `${purchase.part}|${purchase.itemName}`;
+
+  /** 담은 장비의 옥션 매물을 불러온다(아이템 전투력 증가를 자동 계산하기 위해). */
+  const loadListings = async (purchase: PlannedPurchase) => {
+    const key = listingKey(purchase);
+    if (openListings === key) {
+      setOpenListings(null);
+      return;
+    }
+    setOpenListings(key);
+    if (listings[key]?.rows || listings[key]?.loading) return;
+
+    const profile = loadAuctionProfile();
+    if (!profile.accountId || !profile.characterId || !profile.worldId) {
+      setListings((current) => ({
+        ...current,
+        [key]: { loading: false, error: '옥션 연결 정보(Account·Character·World ID)를 먼저 입력해 주세요.' },
+      }));
+      return;
+    }
+
+    setListings((current) => ({ ...current, [key]: { loading: true } }));
+    try {
+      const result = await searchAuction(profile, {
+        keyword: purchase.itemName,
+        exactMatch: true,
+        limit: 20,
+        itemCategory: itemCategoryFor(purchase.part),
+      });
+      const rows: ListingRow[] = result.data.items
+        .map((item) => ({
+          item,
+          parsed: parseListingStats(item, {
+            mainKey: model?.mainKey ?? 'dex',
+            attackLabel: model?.attackLabel ?? '공격력',
+          }),
+        }))
+        .filter((row) => row.parsed.price > 0)
+        .sort((left, right) => left.parsed.price - right.parsed.price)
+        .slice(0, 8);
+      setListings((current) => ({ ...current, [key]: { loading: false, rows } }));
+    } catch (caught) {
+      setListings((current) => ({
+        ...current,
+        [key]: {
+          loading: false,
+          error: caught instanceof Error ? caught.message : '옥션 매물을 불러오지 못했습니다.',
+        },
+      }));
+    }
+  };
+
+  /** 매물의 옵션을 기준으로 아이템 단독 전투력 증가분을 계산해 넣는다. */
+  const applyListing = (index: number, purchase: PlannedPurchase, row: ListingRow) => {
+    if (!model) return;
+    const candidate: CandidateItem = {
+      id: listingKey(purchase),
+      part: purchase.part,
+      name: purchase.itemName,
+      priceEok: row.parsed.priceEok,
+      stats: row.parsed.stats,
+    };
+    // 세트 효과는 시뮬레이터가 단계별로 다시 계산하므로 아이템 단독 증가분만 넣는다.
+    const plan = evaluatePlan(model, items, [candidate]);
+    setPurchases((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, itemPowerGain: Math.round(plan.itemPowerGain) } : item,
+      ),
+    );
+    setOpenListings(null);
   };
 
   if (!model) {
@@ -219,6 +327,15 @@ export default function LoadoutSimulator({ items, stats, characterClass, current
                     만
                   </label>
 
+                  <button
+                    type="button"
+                    onClick={() => loadListings(purchase)}
+                    className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700 transition-colors hover:bg-amber-100"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${listings[listingKey(purchase)]?.loading ? 'animate-spin' : ''}`} />
+                    옥션에서 채우기
+                  </button>
+
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${
                     (step?.setPowerGain ?? 0) > 0
                       ? 'bg-indigo-100 text-indigo-700'
@@ -235,6 +352,42 @@ export default function LoadoutSimulator({ items, stats, characterClass, current
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
+
+                  {openListings === listingKey(purchase) && (
+                    <div className="basis-full rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      {listings[listingKey(purchase)]?.loading && (
+                        <p className="text-xs text-gray-500">옥션에서 매물을 불러오는 중…</p>
+                      )}
+                      {listings[listingKey(purchase)]?.error && (
+                        <p className="text-xs font-semibold text-red-500">{listings[listingKey(purchase)]?.error}</p>
+                      )}
+                      {listings[listingKey(purchase)]?.rows?.length === 0 && (
+                        <p className="text-xs text-gray-500">조건에 맞는 매물을 찾지 못했습니다.</p>
+                      )}
+                      {listings[listingKey(purchase)]?.rows?.map((row) => (
+                        <div
+                          key={`${row.item.itemName}-${row.parsed.price}`}
+                          className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 py-1.5 last:border-0"
+                        >
+                          <p className="min-w-0 text-xs font-bold text-gray-800">
+                            {formatListingPrice(row.parsed.price)}
+                            <span className="ml-2 font-medium text-gray-500">{summarizeListingStats(row.parsed.stats)}</span>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => applyListing(index, purchase, row)}
+                            className="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-gray-700"
+                          >
+                            이 매물로 계산
+                          </button>
+                        </div>
+                      ))}
+                      <p className="mt-1.5 text-[10px] leading-relaxed text-gray-400">
+                        매물 옵션(공격력·주스탯·보공·크뎀)을 지금 착용 장비와 비교해 아이템 단독 전투력 증가분을 자동으로 넣습니다.
+                        세트 효과는 단계별로 따로 계산됩니다.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -318,7 +471,7 @@ export default function LoadoutSimulator({ items, stats, characterClass, current
               <SetChips sets={simulation.finalSets} />
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
-              아이템 효과 칸은 옥션 툴팁의 &lsquo;전투력 증가량&rsquo;을 넣으면 됩니다. 세트 효과는
+              아이템 효과 칸은 &lsquo;옥션에서 채우기&rsquo;로 매물을 고르면 자동으로 계산됩니다(직접 입력도 가능). 세트 효과는
               스탯·공격력·보공·크뎀 변화를 공식으로 다시 계산한 값이라, 같은 아이템이라도
               앞서 산 장비에 따라 증가폭이 달라집니다.
             </p>
