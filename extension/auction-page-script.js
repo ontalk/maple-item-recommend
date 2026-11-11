@@ -14,7 +14,9 @@
   // 401/403/426 은 대부분 "이 브라우저의 디바이스 ID가 세션과 맞지 않음"을 뜻한다.
   // 공식 옥션은 ID를 주기적으로 회전시키므로, 거부되면 다른 후보로 한 번 더 시도한다.
   const REJECTED_DEVICE_STATUS = new Set([401, 403, 426]);
-  const MAX_DEVICE_CANDIDATES = 5;
+  const MAX_DEVICE_CANDIDATES = 3;
+  // 요청 제한(429) 대기는 앱이 기다리는 45초를 넘기지 않도록 제한한다.
+  const MAX_RETRY_WAIT_MS = 12000;
   const searchSessions = new Map();
 
   // 공식 옥션 페이지가 실제로 보낸 x-device-id 를 그대로 관찰해 쓴다.
@@ -219,7 +221,7 @@
       let text;
       let usedDeviceId = '';
       const deviceIds = collectDeviceIds();
-      const maxRateLimitRetries = 3;
+      const maxRateLimitRetries = 1;
 
       for (let candidateIndex = 0; candidateIndex < deviceIds.length; candidateIndex += 1) {
         const deviceId = deviceIds[candidateIndex];
@@ -228,13 +230,27 @@
           response = await makeRequest(requestFilters, deviceId);
           text = await response.text();
           usedDeviceId = deviceId;
+          console.log(`📨 옥션 API 시도: device#${candidateIndex + 1}/${deviceIds.length} → ${response.status}`);
 
           if (response.status !== 429 || attempt === maxRateLimitRetries) break;
 
           const retryAfter = Number(response.headers.get('retry-after'));
-          const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+          const hintedMs = Number.isFinite(retryAfter) && retryAfter > 0
             ? retryAfter * 1000
-            : 15000 * (attempt + 1);
+            : 8000 * (attempt + 1);
+
+          // 안내된 대기가 길면 앱을 오래 기다리게 하지 않고 바로 알린다.
+          if (hintedMs > MAX_RETRY_WAIT_MS * 2) {
+            window.dispatchEvent(new CustomEvent('maple-auction-response', {
+              detail: {
+                requestId,
+                result: { ok: false, error: `옥션 요청이 너무 많습니다(429). ${Math.ceil(hintedMs / 1000)}초 후 다시 시도해주세요.` }
+              }
+            }));
+            return;
+          }
+
+          const waitMs = Math.min(hintedMs, MAX_RETRY_WAIT_MS);
           console.warn(`⏳ 요청 제한(429). ${Math.ceil(waitMs / 1000)}초 후 같은 페이지를 재시도합니다. (${attempt + 1}/${maxRateLimitRetries})`);
           await delay(waitMs);
         }
