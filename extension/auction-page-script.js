@@ -166,6 +166,93 @@
     return true;
   }
 
+  const GRADE_TEXT = { 1: '레어', 2: '에픽', 3: '유니크', 4: '레전드리' };
+
+  /** 라벨 문구로 필터 행을 찾는다(가장 작은 컨테이너 우선). */
+  function filterRowOf(pattern, exclude, needsSelect = false) {
+    const nodes = Array.from(document.querySelectorAll('div, section, li, label'));
+    const matched = nodes.filter((element) => {
+      const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!text || text.length > 60) return false;
+      if (!pattern.test(text)) return false;
+      if (exclude && exclude.test(text)) return false;
+      if (needsSelect && !element.querySelector('select')) return false;
+      return element.querySelectorAll('input, select').length > 0;
+    });
+    return matched.sort((a, b) => (a.textContent || '').length - (b.textContent || '').length)[0] || null;
+  }
+
+  function setNumberFilter(pattern, value, exclude) {
+    if (value === undefined || value === null || value === '' || Number(value) <= 0) return false;
+    const row = filterRowOf(pattern, exclude);
+    if (!row) return false;
+    const input = Array.from(row.querySelectorAll('input')).find((element) => !element.disabled);
+    if (!input) return false;
+    setInputValue(input, String(value));
+    return true;
+  }
+
+  /** 스타포스처럼 최소~최대가 한 줄에 있는 필터 */
+  function setRangeFilter(pattern, min, max) {
+    const minValue = Number(min) || 0;
+    const maxValue = Number(max) || 0;
+    if (minValue <= 0 && maxValue <= 0) return false;
+
+    const row = filterRowOf(pattern);
+    if (!row) return false;
+    const inputs = Array.from(row.querySelectorAll('input')).filter((element) => !element.disabled);
+
+    if (inputs.length >= 2) {
+      if (minValue > 0) setInputValue(inputs[0], String(minValue));
+      if (maxValue > 0) setInputValue(inputs[1], String(maxValue));
+      return true;
+    }
+    return setNumberFilter(pattern, minValue || maxValue);
+  }
+
+  function setGradeFilter(pattern, grade, exclude) {
+    const label = GRADE_TEXT[Number(grade)];
+    if (!label) return false;
+    const row = filterRowOf(pattern, exclude, true);
+    if (!row) return false;
+    const select = row.querySelector('select');
+    const option = Array.from(select.options).find((item) => (item.textContent || '').includes(label));
+    if (!option) return false;
+    select.value = option.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  /**
+   * 앱에서 받은 조건을 공식 필터 패널에 넣는다.
+   * 이렇게 하면 서버가 처음부터 조건에 맞는 매물만 돌려주므로
+   * 18성 미만을 전 페이지에서 긁어온 뒤 거르는 낭비가 사라진다.
+   */
+  function applyOfficialFilters(filters) {
+    const applied = [];
+    if (!filters) return applied;
+
+    const minStar = Number(filters.minStarforce) || 0;
+    const maxStar = Number(filters.maxStarforce) || 0;
+    if (setRangeFilter(/스타포스/, minStar, maxStar)) {
+      applied.push(`스타포스 ${minStar || '최소'}~${maxStar || '최대'}`);
+    }
+
+    const minPrice = Number(filters.minPrice) || 0;
+    const maxPrice = Number(filters.maxPrice) || 0;
+    if (minPrice > 0 && setNumberFilter(/최소 가격/, minPrice)) applied.push(`최소가격 ${minPrice}`);
+    if (maxPrice > 0 && setNumberFilter(/최대 가격/, maxPrice)) applied.push(`최대가격 ${maxPrice}`);
+
+    if (setGradeFilter(/잠재/, filters.minPotentialGrade, /에디/)) {
+      applied.push(`잠재 ${GRADE_TEXT[Number(filters.minPotentialGrade)]}`);
+    }
+    if (setGradeFilter(/에디셔널/, filters.minAdditionalPotentialGrade)) {
+      applied.push(`에디 ${GRADE_TEXT[Number(filters.minAdditionalPotentialGrade)]}`);
+    }
+
+    return applied;
+  }
+
   function labelOf(element) {
     return [
       element.getAttribute('aria-label'),
@@ -250,7 +337,7 @@
     };
   }
 
-  async function searchFirstPage(keyword) {
+  async function searchFirstPage(keyword, filters) {
     const input = findSearchInput();
     if (!input) {
       throw new Error('옥션 검색창을 찾지 못했습니다. 옥션 탭을 새로고침한 뒤 다시 시도해주세요.');
@@ -260,10 +347,15 @@
     lastToolTipCapture = null;
     uiState = { keyword: '', page: 0, totalPages: 0 };
 
+    // 조건을 공식 필터에 넣고 '필터 검색'을 누르면 서버가 걸러서 준다.
+    const appliedFilters = applyOfficialFilters(filters);
+    if (appliedFilters.length) console.log('🎛️ 옥션 필터 적용:', appliedFilters.join(', '));
+
     const startedAt = Date.now();
     input.focus();
     setInputValue(input, keyword);
-    pressEnter(input);
+    if (appliedFilters.length) clickSearchButton();
+    else pressEnter(input);
 
     const fallback = window.setTimeout(() => {
       if (!lastToolTipCapture) clickSearchButton();
@@ -322,14 +414,14 @@
     return normalized;
   }
 
-  async function searchThroughOfficialUi(keyword, targetPage) {
+  async function searchThroughOfficialUi(keyword, targetPage, filters) {
     const wantPage = Math.max(1, Number(targetPage) || 1);
 
     const isSameSearch = uiState.keyword === keyword && uiState.page > 0;
     const canStepForward = isSameSearch && wantPage > uiState.page;
 
     if (!canStepForward) {
-      const first = await searchFirstPage(keyword);
+      const first = await searchFirstPage(keyword, filters);
       if (wantPage === 1) return first;
     }
 
@@ -365,7 +457,7 @@
     try {
       if (!keyword) throw new Error('검색어가 비어 있습니다.');
 
-      const data = await searchThroughOfficialUi(keyword, page);
+      const data = await searchThroughOfficialUi(keyword, page, payload.filters);
       console.log(`✅ 검색 성공: ${data.total}개 중 ${data.items.length}개 (${keyword}, ${data.page}/${data.totalPages}p)`);
 
       window.dispatchEvent(new CustomEvent('maple-auction-response', {
