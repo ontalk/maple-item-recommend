@@ -13,7 +13,9 @@ import {
   worldNameForId,
 } from '@/lib/auction-profile';
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
-import { buildCombatModel, simulatePurchases, type FinalStats } from '@/lib/combat-power';
+import { buildCombatModel, formatPower, type FinalStats } from '@/lib/combat-power';
+import { evaluatePlan, type CandidateItem } from '@/lib/item-planner';
+import { parseListingStats } from '@/lib/auction-listing';
 
 interface EquipmentSearchResult {
   part: string;
@@ -762,18 +764,31 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
   const naivePower = optimalSets.reduce((sum, set) => sum + set.selected.recommendedPower, 0);
   // 장비를 하나씩 담을 때마다 세트 개수를 다시 세어 전투력을 재계산한다.
   // 아이템별 전투력 증가량을 단순 합산하면 세트 효과가 빠진다.
-  const setAware = loadoutModel
-    ? simulatePurchases(
+  // 아이템별 증가량을 더하지 않고, 고른 매물들의 옵션과 세트 효과를 현재 스탯에
+  // 한꺼번에 적용해 최종 전투력을 다시 계산한다(환산 주스탯 방식).
+  // 그래서 '거공 500만 + 몽벨 700만'의 단순 합과 실제 세트 착용 후 증가분이 달라진다.
+  const combinedPlan = loadoutModel
+    ? evaluatePlan(
         loadoutModel,
         characterItems ?? [],
-        optimalSets.map((set) => ({
-          part: set.part,
-          itemName: set.selected.equipment.name,
-          itemPowerGain: set.selected.recommendedPower,
-        })),
+        optimalSets.flatMap<CandidateItem>((set) => {
+          const topItem = set.selected.topItem;
+          if (!topItem) return [];
+          const parsed = parseListingStats(topItem, {
+            mainKey: loadoutModel.mainKey,
+            attackLabel: loadoutModel.attackLabel,
+          });
+          return [{
+            id: `${set.part}|${set.selected.equipment.name}`,
+            part: set.part.replace(/\s*\d+$/, ''),
+            name: set.selected.equipment.name,
+            priceEok: parsed.priceEok,
+            stats: parsed.stats,
+          }];
+        }),
       )
     : null;
-  const selectedPower = setAware ? setAware.totalGain : naivePower;
+  const selectedPower = combinedPlan ? combinedPlan.totalGain : naivePower;
   const targetPowerTotal = Math.max(0, toNumber(targetPowerEok)) * 100000000;
   const currentPower = parseMesos(currentCombatPower);
   const targetPower = Math.max(0, targetPowerTotal - currentPower);
@@ -1206,11 +1221,13 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 <p className="text-3xl font-extrabold text-blue-600">
                   +{selectedPower.toLocaleString()}
                 </p>
-                {setAware && setAware.setPowerTotal !== 0 && (
+                {combinedPlan && (
                   <p className="mt-1 text-xs font-semibold text-gray-500">
-                    아이템 합계 +{naivePower.toLocaleString()} · 세트 효과{' '}
-                    {setAware.setPowerTotal >= 0 ? '+' : ''}
-                    {Math.round(setAware.setPowerTotal).toLocaleString()}
+                    아이템 단독 합 +{naivePower.toLocaleString()} · 세트 효과{' '}
+                    {combinedPlan.setPowerGain >= 0 ? '+' : ''}
+                    {Math.round(combinedPlan.setPowerGain).toLocaleString()} · 최종{' '}
+                    {loadoutModel ? formatPower(loadoutModel.apiPower) : '-'} →{' '}
+                    {formatPower(combinedPlan.finalPower)}
                   </p>
                 )}
               </div>
@@ -1221,6 +1238,10 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 </p>
               </div>
             </div>
+            <p className="mt-4 text-xs font-semibold leading-relaxed text-gray-500">
+              최종 전투력은 고른 매물들의 옵션과 세트 효과를 현재 스탯에 한꺼번에 적용해 다시 계산한 값입니다.
+              스탯·공격력 % 중첩과 세트 효과 때문에 &lsquo;단독 증가&rsquo;를 단순히 더한 값과 달라질 수 있습니다.
+            </p>
           </div>
 
           {/* 부위별 최적 장비 */}
@@ -1257,7 +1278,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                   </div>
                   <div className="flex items-center gap-4 mt-2 pt-2 border-t border-emerald-200">
                     <div>
-                      <p className="text-xs text-gray-500">전투력</p>
+                      <p className="text-xs text-gray-500">단독 증가</p>
                       <p className="text-sm font-bold text-blue-600">+{optimalSet.selected.recommendedPower.toLocaleString()}</p>
                     </div>
                     <div>
