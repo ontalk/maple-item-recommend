@@ -3,8 +3,8 @@
 // 왜 직접 API를 호출하지 않는가:
 // api.mskr.nexon.com 의 검색 API 를 확장이 직접 호출하면 Nexon 이 HTTP 426 +
 // {"code":6013} 로 응답하고 로그인 세션을 끊어버린다(비정상 클라이언트 차단).
-// 그래서 공식 페이지의 검색 UI 를 그대로 조작하고, 그 요청의 응답만 가로채서 쓴다.
-// 페이지 2 이상도 공식 페이저 버튼을 눌러 이동하므로 전 페이지를 모을 수 있다.
+// 그래서 공식 페이지의 검색 UI 를 조작하고, 그 요청의 응답만 가로채서 쓴다.
+// 다음 페이지는 공식 페이저 클릭 → 실패하면 URL 의 page 파라미터로 이동한다.
 (function() {
   if (window.__mapleAuctionPageScriptInstalled) {
     console.warn('⚠️ Maple Auction page script already installed');
@@ -14,13 +14,18 @@
 
   const PAGE_LIMIT = 20;
   const SEARCH_CAPTURE_TIMEOUT_MS = 9000;
-  const PAGE_CAPTURE_TIMEOUT_MS = 8000;
+  const PAGE_CAPTURE_TIMEOUT_MS = 7000;
   const SEARCH_BUTTON_FALLBACK_MS = 1200;
 
   // 공식 페이지가 스스로 보낸 검색 응답을 여기에 보관한다.
   let lastToolTipCapture = null;
   // 현재 공식 화면이 어떤 검색어의 몇 페이지를 보여주고 있는지.
   let uiState = { keyword: '', page: 0, totalPages: 0 };
+
+  // 다음 페이지를 받지 못했을 때 "여기서 멈추고 지금까지 결과로 마무리"를 알리는 신호.
+  function StopPaging(message) {
+    this.message = message;
+  }
 
   function isToolTipUrl(url) {
     return typeof url === 'string'
@@ -104,25 +109,56 @@
     return true;
   }
 
-  /** 공식 페이저의 다음 페이지 버튼을 찾아 누른다. */
-  function clickNextPage() {
-    const candidates = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-    const target = candidates.find((element) => {
-      if (element.disabled) return false;
-      const label = [
-        element.getAttribute('aria-label'),
-        element.getAttribute('title'),
-        element.textContent,
-      ].filter(Boolean).join(' ').trim();
-      if (!label) return false;
-      const compact = label.replace(/\s+/g, '');
-      if (compact === '>' || compact === '›' || compact === '→') return true;
-      return /다음\s*페이지|다음페이지|next\s*page/i.test(label);
-    });
+  function labelOf(element) {
+    return [
+      element.getAttribute('aria-label'),
+      element.getAttribute('title'),
+      element.textContent,
+    ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  }
 
+  /** 페이저일 가능성이 높은 요소부터 훑어 "다음" 버튼을 찾는다. */
+  function findNextPageButton() {
+    const scoped = Array.from(document.querySelectorAll(
+      '[class*="pagination"], [class*="paging"], [class*="pageNum"], [class*="page-num"], [class*="pager"], nav',
+    )).flatMap((scope) => Array.from(scope.querySelectorAll('button, a, [role="button"]')));
+
+    const global = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+    const candidates = Array.from(new Set([...scoped, ...global]));
+
+    return candidates.find((element) => {
+      if (element.disabled) return false;
+      if (element.getAttribute('aria-disabled') === 'true') return false;
+      const label = labelOf(element);
+      if (!label || label.length > 24) return false;
+
+      const compact = label.replace(/\s+/g, '');
+      if (['>', '›', '→', '⟩', '»', '▶'].includes(compact)) return true;
+      return /^다음(페이지)?$|^next$/i.test(compact) || /다음페이지|nextpage/i.test(compact);
+    });
+  }
+
+  function clickNextPage() {
+    const target = findNextPageButton();
     if (!target) return false;
+    console.log('➡️ 옥션 다음 페이지 버튼 클릭:', labelOf(target) || target.tagName);
     target.click();
     return true;
+  }
+
+  /** 페이저 클릭이 안 되면 URL 의 page 파라미터를 바꿔 라우터를 움직인다. */
+  function goToPageViaUrl(page) {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('page') && !url.searchParams.has('keyword')) return false;
+      url.searchParams.set('page', String(page));
+      window.history.pushState({}, '', url.toString());
+      window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+      console.log('🧭 URL page 파라미터로 이동 시도:', page);
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   function waitForCapture(startedAt, timeoutMs, hint) {
@@ -175,7 +211,6 @@
     setInputValue(input, keyword);
     pressEnter(input);
 
-    // Enter 로 검색되지 않는 화면을 위해 잠시 뒤 검색 버튼도 눌러 본다.
     const fallback = window.setTimeout(() => {
       if (!lastToolTipCapture) clickSearchButton();
     }, SEARCH_BUTTON_FALLBACK_MS);
@@ -185,7 +220,6 @@
       try {
         data = await waitForCapture(startedAt, SEARCH_CAPTURE_TIMEOUT_MS);
       } catch (error) {
-        // 한 번 더 시도: 입력값을 다시 넣고 검색 버튼을 눌러 본다.
         console.warn('🔁 첫 검색 응답이 없어 재시도합니다:', keyword);
         lastToolTipCapture = null;
         const retryAt = Date.now();
@@ -207,26 +241,40 @@
     }
   }
 
-  /** 공식 페이저를 눌러 다음 페이지로 이동한다. */
+  /** 다음 페이지로 이동한다(페이저 클릭 → URL 파라미터 순). */
   async function searchNextPage() {
+    const nextPage = uiState.page + 1;
     lastToolTipCapture = null;
     const startedAt = Date.now();
 
-    if (!clickNextPage()) {
-      throw new Error('옥션 다음 페이지 버튼을 찾지 못했습니다. 옥션 탭에서 직접 다음 페이지로 넘어가는지 확인해주세요.');
+    let triggered = clickNextPage();
+    if (!triggered) triggered = goToPageViaUrl(nextPage);
+    if (!triggered) {
+      throw new StopPaging('옥션 다음 페이지 버튼을 찾지 못했습니다.');
     }
 
-    const data = await waitForCapture(startedAt, PAGE_CAPTURE_TIMEOUT_MS, '옥션 다음 페이지 응답을 받지 못했습니다.');
-    const nextPage = uiState.page + 1;
+    let data;
+    try {
+      data = await waitForCapture(startedAt, PAGE_CAPTURE_TIMEOUT_MS, '옥션 다음 페이지 응답을 받지 못했습니다.');
+    } catch (error) {
+      // 페이저 클릭은 됐는데 응답이 없으면 URL 방식으로 한 번 더 시도한다.
+      lastToolTipCapture = null;
+      const retryAt = Date.now();
+      if (!goToPageViaUrl(nextPage) || !(await waitForCapture(retryAt, PAGE_CAPTURE_TIMEOUT_MS).catch(() => null))) {
+        throw new StopPaging('옥션 다음 페이지 응답을 받지 못했습니다.');
+      }
+      data = lastToolTipCapture.data;
+    }
+
     const normalized = normalizePage(data, nextPage);
     uiState = { ...uiState, page: nextPage, totalPages: normalized.totalPages };
+    console.log(`📄 옥션 ${nextPage}/${normalized.totalPages} 페이지 확보`);
     return normalized;
   }
 
   async function searchThroughOfficialUi(keyword, targetPage) {
     const wantPage = Math.max(1, Number(targetPage) || 1);
 
-    // 다른 검색어이거나 이미 지나온 페이지를 다시 요청하면 1페이지부터 새로 한다.
     const isSameSearch = uiState.keyword === keyword && uiState.page > 0;
     const canStepForward = isSameSearch && wantPage > uiState.page;
 
@@ -235,8 +283,20 @@
       if (wantPage === 1) return first;
     }
 
-    while (uiState.page < wantPage) {
-      await searchNextPage();
+    try {
+      while (uiState.page < wantPage) {
+        await searchNextPage();
+      }
+    } catch (error) {
+      if (error instanceof StopPaging) {
+        // 다음 페이지를 못 받으면 지금까지 모은 결과로 조용히 마무리한다.
+        console.warn('⚠️ 다음 페이지를 받지 못해 여기서 마무리합니다:', error.message);
+        if (lastToolTipCapture) {
+          const normalized = normalizePage(lastToolTipCapture.data, uiState.page);
+          return { ...normalized, totalPages: uiState.page, hasNext: false, total: normalized.total };
+        }
+      }
+      throw error;
     }
 
     if (!lastToolTipCapture) {
