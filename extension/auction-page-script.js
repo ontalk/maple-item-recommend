@@ -591,6 +591,8 @@
       }
 
       const normalized = normalizePage(data, 1);
+      // 앱 화면에서 "실제로 어떤 조건이 걸렸는지" 보여줄 수 있게 같이 돌려준다.
+      normalized.appliedFilters = appliedFilters;
       if (appliedFilters.length) {
         console.log(`📊 필터 적용 후 서버 응답: ${normalized.total}건 (${normalized.totalPages}페이지)`);
       }

@@ -64,6 +64,8 @@ export interface AuctionSearchResponse {
   total: number;
   totalPages: number;
   hasNext: boolean;
+  /** 확장이 공식 필터 패널에 실제로 넣은 조건들 */
+  appliedFilters?: string[];
 }
 
 export interface AuctionRawItem {

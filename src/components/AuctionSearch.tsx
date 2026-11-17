@@ -508,6 +508,7 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [appliedFilterLabels, setAppliedFilterLabels] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [optimalSets, setOptimalSets] = useState<OptimalSet[]>([]);
   const [equipmentSearchQuery, setEquipmentSearchQuery] = useState('');
@@ -709,7 +710,9 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
               if (currentPage === 1) {
                 totalSearched++;
                 setRemaining(result.remaining);
+                setAppliedFilterLabels(result.data.appliedFilters ?? []);
                 console.log(`  └─ 총 ${result.data.total}개 매물 발견, ${result.data.totalPages}페이지`);
+                console.log(`  └─ 확장이 실제로 건 필터: ${(result.data.appliedFilters ?? []).join(', ') || '없음'}`);
               }
               
               allItems.push(...result.data.items);
@@ -1322,6 +1325,16 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             ))}
           </div>
         </div>
+
+        {appliedFilterLabels.length > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <p className="text-xs font-bold text-amber-800">🧪 옥션에 실제로 적용된 필터</p>
+            <p className="mt-1 text-xs text-amber-700">{appliedFilterLabels.join(' · ')}</p>
+            <p className="mt-1 text-[11px] text-amber-600">
+              여기에 없는 조건은 옥션 패널에서 못 걸렀다는 뜻입니다(앱이 잠재·에디·추가옵션은 자체 재검사).
+            </p>
+          </div>
+        )}
 
         {/* 검색할 아이템 선택 */}
         <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
