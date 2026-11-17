@@ -726,6 +726,15 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
               }
             }
             
+            const activeOptionFilters = [
+              auctionFilters.potentialOption ? `잠재 ${auctionFilters.potentialOption} ${auctionFilters.minPotentialOptionValue}` : '',
+              auctionFilters.additionalPotentialOption ? `에디 ${auctionFilters.additionalPotentialOption} ${auctionFilters.minAdditionalPotentialOptionValue}` : '',
+              auctionFilters.exOption ? `추가 ${auctionFilters.exOption} ${auctionFilters.minExOptionValue}` : '',
+            ].filter(Boolean);
+            if (activeOptionFilters.length) {
+              console.log(`  └─ 옵션 조건 적용: ${activeOptionFilters.join(', ')}`);
+            }
+
             const filteredItems = allItems.filter((item) => matchesAuctionFilter(item, auctionFilters, ignoreStarforce, ignoreEnhancementGrades));
             console.log(
               `  └─ 조건 통과 ${filteredItems.length}/${allItems.length}개 (최소 스타포스 ${auctionFilters.minStarforce || '없음'}, 최대 ${auctionFilters.maxStarforce || '없음'})`,
