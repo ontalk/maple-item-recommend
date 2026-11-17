@@ -215,6 +215,69 @@ interface AuctionItemFilter {
   minAdditionalPotentialGrade: string;
   minCuttableCount: string;
   maxCuttableCount: string;
+  jobClass: string;
+  minLevel: string;
+  maxLevel: string;
+  potentialOption: string;
+  minPotentialOptionValue: string;
+  additionalPotentialOption: string;
+  minAdditionalPotentialOptionValue: string;
+  exOption: string;
+  minExOptionValue: string;
+  scrollOption: string;
+  minScrollValue: string;
+  minScrollRemaining: string;
+  maxScrollRemaining: string;
+  minSkillRingLevel: string;
+  maxSkillRingLevel: string;
+  cuttableCountUnset: boolean;
+  untradable: boolean;
+  exOptionExtractable: boolean;
+  potentialExtractable: boolean;
+}
+
+const FILTER_INPUT_CLASS = 'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange';
+
+// 옥션 공식 필터 패널의 옵션 드롭다운과 같은 이름을 쓴다(확장이 문구로 매칭한다).
+const AUCTION_STAT_OPTIONS = [
+  'STR', 'DEX', 'INT', 'LUK', '올스탯', '최대 HP', '최대 MP',
+  '공격력', '마력', '보스 몬스터 데미지', '데미지', '크리티컬 데미지', '방어율 무시',
+];
+
+function AuctionOptionSelect({ label, option, minValue, onOption, onMinValue, disabled }: {
+  label: string;
+  option: string;
+  minValue: string;
+  onOption: (value: string) => void;
+  onMinValue: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="block">
+      <span className="text-xs font-semibold text-gray-600">{label}</span>
+      <div className="mt-1 flex gap-2">
+        <select
+          value={option}
+          onChange={(event) => onOption(event.target.value)}
+          disabled={disabled}
+          className="w-1/2 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+        >
+          <option value="">선택 안 함</option>
+          {AUCTION_STAT_OPTIONS.map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
+        </select>
+        <input
+          value={minValue}
+          onChange={(event) => onMinValue(event.target.value)}
+          inputMode="numeric"
+          placeholder="최소값"
+          disabled={disabled || !option}
+          className={`${FILTER_INPUT_CLASS} mt-0 w-1/2 disabled:bg-gray-100`}
+        />
+      </div>
+    </div>
+  );
 }
 
 function isFatalAuctionError(error: unknown): boolean {
@@ -408,6 +471,25 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
     minAdditionalPotentialGrade: '0',
     minCuttableCount: '',
     maxCuttableCount: '',
+    jobClass: '',
+    minLevel: '',
+    maxLevel: '',
+    potentialOption: '',
+    minPotentialOptionValue: '',
+    additionalPotentialOption: '',
+    minAdditionalPotentialOptionValue: '',
+    exOption: '',
+    minExOptionValue: '',
+    scrollOption: '',
+    minScrollValue: '',
+    minScrollRemaining: '',
+    maxScrollRemaining: '',
+    minSkillRingLevel: '',
+    maxSkillRingLevel: '',
+    cuttableCountUnset: false,
+    untradable: false,
+    exOptionExtractable: false,
+    potentialExtractable: false,
   });
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState('');
@@ -575,6 +657,25 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 minAdditionalPotentialGrade: ignoreEnhancementGrades ? undefined : toNumber(auctionFilters.minAdditionalPotentialGrade),
                 cuttableCountMin: ignoreCuttableCount ? undefined : toNumber(auctionFilters.minCuttableCount),
                 cuttableCountMax: ignoreCuttableCount ? undefined : toNumber(auctionFilters.maxCuttableCount),
+                jobClass: auctionFilters.jobClass || undefined,
+                levelMin: toNumber(auctionFilters.minLevel) || undefined,
+                levelMax: toNumber(auctionFilters.maxLevel) || undefined,
+                potentialOption: auctionFilters.potentialOption || undefined,
+                potentialOptionMin: toNumber(auctionFilters.minPotentialOptionValue) || undefined,
+                additionalPotentialOption: auctionFilters.additionalPotentialOption || undefined,
+                additionalPotentialOptionMin: toNumber(auctionFilters.minAdditionalPotentialOptionValue) || undefined,
+                exOption: auctionFilters.exOption || undefined,
+                exOptionMin: toNumber(auctionFilters.minExOptionValue) || undefined,
+                scrollOption: auctionFilters.scrollOption || undefined,
+                scrollOptionMin: toNumber(auctionFilters.minScrollValue) || undefined,
+                scrollRemainingMin: toNumber(auctionFilters.minScrollRemaining) || undefined,
+                scrollRemainingMax: toNumber(auctionFilters.maxScrollRemaining) || undefined,
+                skillRingLevelMin: toNumber(auctionFilters.minSkillRingLevel) || undefined,
+                skillRingLevelMax: toNumber(auctionFilters.maxSkillRingLevel) || undefined,
+                cuttableCountUnset: auctionFilters.cuttableCountUnset || undefined,
+                untradable: auctionFilters.untradable || undefined,
+                exOptionExtractable: auctionFilters.exOptionExtractable || undefined,
+                potentialExtractable: auctionFilters.potentialExtractable || undefined,
                 itemCategory,
                 enhancementOption: {
                   starforceMin: ignoreStarforce ? undefined : (toNumber(auctionFilters.minStarforce) || undefined),
@@ -1059,10 +1160,143 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                 onChange={(event) => setAuctionFilters((current) => ({ ...current, maxCuttableCount: event.target.value }))}
                 inputMode="numeric"
                 placeholder="제한 없음"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                className={FILTER_INPUT_CLASS}
                 disabled={isSearching}
               />
             </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">직업군</span>
+              <select
+                value={auctionFilters.jobClass}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, jobClass: event.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-maple-orange"
+                disabled={isSearching}
+              >
+                <option value="">전체</option>
+                <option value="전사">전사</option>
+                <option value="마법사">마법사</option>
+                <option value="궁수">궁수</option>
+                <option value="도적">도적</option>
+                <option value="해적">해적</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">최소 레벨</span>
+              <input
+                value={auctionFilters.minLevel}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minLevel: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className={FILTER_INPUT_CLASS}
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">최대 레벨</span>
+              <input
+                value={auctionFilters.maxLevel}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, maxLevel: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className={FILTER_INPUT_CLASS}
+                disabled={isSearching}
+              />
+            </label>
+            <AuctionOptionSelect
+              label="잠재능력"
+              option={auctionFilters.potentialOption}
+              minValue={auctionFilters.minPotentialOptionValue}
+              onOption={(value) => setAuctionFilters((current) => ({ ...current, potentialOption: value }))}
+              onMinValue={(value) => setAuctionFilters((current) => ({ ...current, minPotentialOptionValue: value }))}
+              disabled={isSearching}
+            />
+            <AuctionOptionSelect
+              label="에디셔널 잠재능력"
+              option={auctionFilters.additionalPotentialOption}
+              minValue={auctionFilters.minAdditionalPotentialOptionValue}
+              onOption={(value) => setAuctionFilters((current) => ({ ...current, additionalPotentialOption: value }))}
+              onMinValue={(value) => setAuctionFilters((current) => ({ ...current, minAdditionalPotentialOptionValue: value }))}
+              disabled={isSearching}
+            />
+            <AuctionOptionSelect
+              label="추가 옵션"
+              option={auctionFilters.exOption}
+              minValue={auctionFilters.minExOptionValue}
+              onOption={(value) => setAuctionFilters((current) => ({ ...current, exOption: value }))}
+              onMinValue={(value) => setAuctionFilters((current) => ({ ...current, minExOptionValue: value }))}
+              disabled={isSearching}
+            />
+            <AuctionOptionSelect
+              label="주문서 강화"
+              option={auctionFilters.scrollOption}
+              minValue={auctionFilters.minScrollValue}
+              onOption={(value) => setAuctionFilters((current) => ({ ...current, scrollOption: value }))}
+              onMinValue={(value) => setAuctionFilters((current) => ({ ...current, minScrollValue: value }))}
+              disabled={isSearching}
+            />
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">주문서 강화 잔여 횟수 최소</span>
+              <input
+                value={auctionFilters.minScrollRemaining}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minScrollRemaining: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className={FILTER_INPUT_CLASS}
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">주문서 강화 잔여 횟수 최대</span>
+              <input
+                value={auctionFilters.maxScrollRemaining}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, maxScrollRemaining: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className={FILTER_INPUT_CLASS}
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">특수 스킬 반지 레벨 최소</span>
+              <input
+                value={auctionFilters.minSkillRingLevel}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, minSkillRingLevel: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className={FILTER_INPUT_CLASS}
+                disabled={isSearching}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600">특수 스킬 반지 레벨 최대</span>
+              <input
+                value={auctionFilters.maxSkillRingLevel}
+                onChange={(event) => setAuctionFilters((current) => ({ ...current, maxSkillRingLevel: event.target.value }))}
+                inputMode="numeric"
+                placeholder="제한 없음"
+                className={FILTER_INPUT_CLASS}
+                disabled={isSearching}
+              />
+            </label>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+            {([
+              ['cuttableCountUnset', '가위 사용 횟수 미부여'],
+              ['untradable', '장착 시 교환 불가'],
+              ['exOptionExtractable', '추가 옵션 추출 가능'],
+              ['potentialExtractable', '잠재능력 추출 가능'],
+            ] as Array<[keyof AuctionItemFilter, string]>).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(auctionFilters[key])}
+                  onChange={(event) => setAuctionFilters((current) => ({ ...current, [key]: event.target.checked }))}
+                  disabled={isSearching}
+                  className="h-4 w-4 accent-maple-orange"
+                />
+                {label}
+              </label>
+            ))}
           </div>
         </div>
 

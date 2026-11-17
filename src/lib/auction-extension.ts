@@ -17,6 +17,31 @@ export interface AuctionSearchFilters {
   minAdditionalPotentialGrade?: number;
   cuttableCountMin?: number;
   cuttableCountMax?: number;
+  /** 옥션 공식 필터의 직업군(전사·마법사·궁수·도적·해적) */
+  jobClass?: string;
+  levelMin?: number;
+  levelMax?: number;
+  /** 잠재능력 옵션 필터(예: '보스 몬스터 데미지')와 최소값 */
+  potentialOption?: string;
+  potentialOptionMin?: number;
+  additionalPotentialOption?: string;
+  additionalPotentialOptionMin?: number;
+  /** 추가 옵션 */
+  exOption?: string;
+  exOptionMin?: number;
+  /** 주문서 강화 */
+  scrollOption?: string;
+  scrollOptionMin?: number;
+  scrollRemainingMin?: number;
+  scrollRemainingMax?: number;
+  /** 특수 스킬 반지 레벨 */
+  skillRingLevelMin?: number;
+  skillRingLevelMax?: number;
+  /** 체크박스형 조건 */
+  cuttableCountUnset?: boolean;
+  untradable?: boolean;
+  exOptionExtractable?: boolean;
+  potentialExtractable?: boolean;
   itemCategory?: {
     itemDetailCategory: string;
   };

@@ -197,12 +197,12 @@
   }
 
   /** 스타포스처럼 최소~최대가 한 줄에 있는 필터 */
-  function setRangeFilter(pattern, min, max) {
+  function setRangeFilter(pattern, min, max, exclude) {
     const minValue = Number(min) || 0;
     const maxValue = Number(max) || 0;
     if (minValue <= 0 && maxValue <= 0) return false;
 
-    const row = filterRowOf(pattern);
+    const row = filterRowOf(pattern, exclude);
     if (!row) return false;
     const inputs = Array.from(row.querySelectorAll('input')).filter((element) => !element.disabled);
 
@@ -222,16 +222,62 @@
     return digits ? Number(digits) : undefined;
   }
 
+  /** 행 안의 select 에서 문구가 맞는 옵션을 고른다. */
+  function selectOptionInRow(row, text) {
+    const select = row && row.querySelector('select');
+    if (!select) return false;
+    const compact = String(text || '').replace(/\s+/g, '');
+    if (!compact) return false;
+    const option = Array.from(select.options).find(
+      (item) => (item.textContent || '').replace(/\s+/g, '').includes(compact),
+    );
+    if (!option) return false;
+    select.value = option.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
   function setGradeFilter(pattern, grade, exclude) {
     const label = GRADE_TEXT[Number(grade)];
     if (!label) return false;
     const row = filterRowOf(pattern, exclude, true);
     if (!row) return false;
-    const select = row.querySelector('select');
-    const option = Array.from(select.options).find((item) => (item.textContent || '').includes(label));
-    if (!option) return false;
-    select.value = option.value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return selectOptionInRow(row, label);
+  }
+
+  /** 직업군처럼 '전체/전사/…' 드롭다운 하나짜리 필터 */
+  function setSelectFilter(pattern, text, exclude) {
+    if (!text) return false;
+    const row = filterRowOf(pattern, exclude, true);
+    if (!row) return false;
+    return selectOptionInRow(row, text);
+  }
+
+  /** '잠재능력 / 추가 옵션 / 주문서 강화'처럼 [옵션 드롭다운] + [최소값 입력] 형태 */
+  function setOptionValueFilter(pattern, optionText, min, exclude) {
+    const row = filterRowOf(pattern, exclude, true);
+    if (!row) return false;
+    if (optionText && !selectOptionInRow(row, optionText)) return false;
+    const minValue = Number(min) || 0;
+    if (minValue > 0) {
+      const input = Array.from(row.querySelectorAll('input')).find((element) => !element.disabled);
+      if (!input) return false;
+      setInputValue(input, String(minValue));
+    }
+    return true;
+  }
+
+  /** 체크박스형 조건(가위 사용 횟수 미부여 · 교환 불가 · 추출 가능) */
+  function setCheckboxFilter(pattern, exclude) {
+    const row = filterRowOf(pattern, exclude);
+    if (!row) return false;
+    const box = row.querySelector('input[type="checkbox"], [role="checkbox"], [class*="checkbox"]');
+    if (box) {
+      if (box.checked || box.getAttribute('aria-checked') === 'true') return true;
+      box.click();
+      return true;
+    }
+    row.click();
     return true;
   }
 
@@ -261,6 +307,47 @@
     if (setGradeFilter(/에디셔널/, filters.minAdditionalPotentialGrade)) {
       applied.push(`에디 ${GRADE_TEXT[Number(filters.minAdditionalPotentialGrade)]}`);
     }
+
+    // 레벨 · 직업군
+    const minLevel = Number(filters.levelMin) || 0;
+    const maxLevel = Number(filters.levelMax) || 0;
+    if (setRangeFilter(/^레벨/, minLevel, maxLevel)) {
+      applied.push(`레벨 ${minLevel || '최소'}~${maxLevel || '최대'}`);
+    }
+    if (setSelectFilter(/직업군/, filters.jobClass)) applied.push(`직업군 ${filters.jobClass}`);
+
+    // 잠재능력 · 에디셔널 잠재능력 · 추가 옵션 · 주문서 강화 (옵션 + 최소값)
+    if (setOptionValueFilter(/잠재능력/, filters.potentialOption, filters.potentialOptionMin, /에디/)) {
+      applied.push(`잠재 ${filters.potentialOption} ${filters.potentialOptionMin || ''}`.trim());
+    }
+    if (setOptionValueFilter(/에디셔널 잠재능력/, filters.additionalPotentialOption, filters.additionalPotentialOptionMin)) {
+      applied.push(`에디 잠재 ${filters.additionalPotentialOption} ${filters.additionalPotentialOptionMin || ''}`.trim());
+    }
+    if (setOptionValueFilter(/추가 옵션/, filters.exOption, filters.exOptionMin, /추출/)) {
+      applied.push(`추가옵션 ${filters.exOption} ${filters.exOptionMin || ''}`.trim());
+    }
+    if (setOptionValueFilter(/주문서 강화/, filters.scrollOption, filters.scrollOptionMin, /잔여/)) {
+      applied.push(`주문서 ${filters.scrollOption} ${filters.scrollOptionMin || ''}`.trim());
+    }
+
+    // 최소~최대 범위형 조건
+    if (setRangeFilter(/주문서 강화 잔여/, filters.scrollRemainingMin, filters.scrollRemainingMax)) {
+      applied.push(`주문서 잔여 ${filters.scrollRemainingMin || '최소'}~${filters.scrollRemainingMax || '최대'}`);
+    }
+    if (setRangeFilter(/특수 스킬 반지/, filters.skillRingLevelMin, filters.skillRingLevelMax)) {
+      applied.push(`스킬반지 ${filters.skillRingLevelMin || '최소'}~${filters.skillRingLevelMax || '최대'}`);
+    }
+    if (setRangeFilter(/가위 사용 횟수/, filters.cuttableCountMin, filters.cuttableCountMax, /미부여/)) {
+      applied.push(`가위 ${filters.cuttableCountMin || '최소'}~${filters.cuttableCountMax || '최대'}`);
+    }
+
+    // 체크박스형 조건
+    if (filters.cuttableCountUnset && setCheckboxFilter(/가위 사용 횟수 미부여/)) {
+      applied.push('가위 횟수 미부여');
+    }
+    if (filters.untradable && setCheckboxFilter(/장착 시 교환 불가/)) applied.push('교환 불가');
+    if (filters.exOptionExtractable && setCheckboxFilter(/추가 옵션 추출 가능/)) applied.push('추가옵션 추출');
+    if (filters.potentialExtractable && setCheckboxFilter(/잠재능력 추출 가능/)) applied.push('잠재 추출');
 
     // 값 입력 직후 바로 클릭하면 화면(리액트) 상태가 반영되기 전에 검색이 나가
     // 필터 없이 전 매물을 긁게 된다. 잠시 기다렸다가 값이 들어갔는지 확인한다.
