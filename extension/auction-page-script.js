@@ -222,19 +222,67 @@
     return digits ? Number(digits) : undefined;
   }
 
+  /**
+   * 셀렉트도 인풋과 마찬가지로 네이티브 setter를 써야 리액트 상태가 바뀐다.
+   * select.value = ... 로 직접 넣으면 리액트의 값 추적기가 먼저 갱신되어
+   * change 이벤트를 무시하고, 화면에만 값이 보이고 실제 검색에는 안 들어간다.
+   */
+  function setSelectValue(select, value) {
+    const descriptor = window.HTMLSelectElement
+      ? Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')
+      : null;
+    if (descriptor && descriptor.set) descriptor.set.call(select, value);
+    else select.value = value;
+
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /** 옵션 문구를 공백과 '공격 시' 유무 차이를 무시하고 비교한다. */
+  function normalizeOptionText(text) {
+    return String(text || '').replace(/\s+/g, '').replace(/공격시/g, '');
+  }
+
   /** 행 안의 select 에서 문구가 맞는 옵션을 고른다. */
   function selectOptionInRow(row, text) {
     const select = row && row.querySelector('select');
     if (!select) return false;
-    const compact = String(text || '').replace(/\s+/g, '');
+    const compact = normalizeOptionText(text);
     if (!compact) return false;
-    const option = Array.from(select.options).find(
-      (item) => (item.textContent || '').replace(/\s+/g, '').includes(compact),
-    );
-    if (!option) return false;
-    select.value = option.value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const options = Array.from(select.options);
+    const option =
+      options.find((item) => normalizeOptionText(item.textContent) === compact) ||
+      options.find((item) => normalizeOptionText(item.textContent).includes(compact)) ||
+      options.find((item) => compact.includes(normalizeOptionText(item.textContent)) && normalizeOptionText(item.textContent).length >= 2);
+
+    if (!option) {
+      console.warn(
+        `🎛️ 옵션 '${text}'을 패널에서 찾지 못했습니다. 선택지:`,
+        options.map((item) => (item.textContent || '').trim()).join(' | '),
+      );
+      return false;
+    }
+
+    setSelectValue(select, option.value);
     return true;
+  }
+
+  /** 옥션 잠재능력처럼 '+' 버튼으로 조건을 추가해야 반영되는 UI를 눌러 준다. */
+  function clickAddButton(row) {
+    if (!row) return false;
+    const scopes = [row, row.parentElement, row.parentElement && row.parentElement.parentElement].filter(Boolean);
+    for (const scope of scopes) {
+      const button = Array.from(scope.querySelectorAll('button')).find((element) => {
+        if (element.disabled) return false;
+        const label = (element.textContent || '').replace(/\s+/g, '');
+        return label === '+' || label === '추가' || label === '추가하기';
+      });
+      if (button) {
+        button.click();
+        return true;
+      }
+    }
+    return false;
   }
 
   function setGradeFilter(pattern, grade, exclude) {
@@ -264,6 +312,8 @@
       if (!input) return false;
       setInputValue(input, String(minValue));
     }
+    // 조건을 입력만 하고 '+'를 안 누르면 서버 요청에 포함되지 않는다.
+    clickAddButton(row);
     return true;
   }
 
@@ -352,15 +402,47 @@
     // 값 입력 직후 바로 클릭하면 화면(리액트) 상태가 반영되기 전에 검색이 나가
     // 필터 없이 전 매물을 긁게 된다. 잠시 기다렸다가 값이 들어갔는지 확인한다.
     if (applied.length) {
-      await delay(300);
+      await delay(400);
       if (minStar > 0 && readNumberFilter(/스타포스/) !== minStar) {
         console.warn('🎛️ 스타포스 값이 반영되지 않아 다시 입력합니다.');
         setRangeFilter(/스타포스/, minStar, maxStar);
         await delay(250);
       }
+      // 옵션 필터는 셀렉트가 실제로 그 값으로 남아 있는지 다시 읽어 확인한다.
+      const optionRows = [];
+      if (filters.potentialOption) optionRows.push(['잠재능력', /잠재능력/, /에디/]);
+      if (filters.additionalPotentialOption) optionRows.push(['에디 잠재', /에디셔널 잠재능력/, undefined]);
+      if (filters.exOption) optionRows.push(['추가 옵션', /추가 옵션/, /추출/]);
+      if (filters.scrollOption) optionRows.push(['주문서 강화', /주문서 강화/, /잔여/]);
+      for (const [label, pattern, exclude] of optionRows) {
+        const row = filterRowOf(pattern, exclude, true);
+        const select = row && row.querySelector('select');
+        const input = row && Array.from(row.querySelectorAll('input')).find((element) => !element.disabled);
+        const chosen = select
+          ? (Array.from(select.options).find((item) => item.value === select.value) || {}).textContent
+          : undefined;
+        if (!chosen || chosen.includes('선택')) {
+          console.warn(`🎛️ ${label} 필터가 선택되지 않았습니다(현재값: ${chosen || '없음'}).`);
+        } else {
+          console.log(`🎛️ ${label} 필터 확인: ${String(chosen).trim()} / 최소 ${input ? input.value : '없음'}`);
+        }
+      }
     }
 
     return applied;
+  }
+
+  // 실제 옥션 화면에서 필터를 직접 점검할 수 있게 디버그 핸들을 남긴다.
+  try {
+    window.__mapleAuctionFilterDebug = {
+      applyOfficialFilters,
+      filterRowOf,
+      selectOptionInRow,
+      setOptionValueFilter,
+      clickAddButton,
+    };
+  } catch (error) {
+    // 무시
   }
 
   function labelOf(element) {
