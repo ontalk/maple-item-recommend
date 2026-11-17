@@ -1512,8 +1512,8 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             </div>
             <p className="mt-4 text-xs font-semibold leading-relaxed text-gray-500">
               최종 전투력은 고른 매물들의 옵션과 세트 효과를 현재 스탯에 한꺼번에 적용해 다시 계산한 값입니다.
-              매물별 &lsquo;단독 증가&rsquo;는 게임이 표시하는 전투력증가와 맞췄고, 여러 개를 함께 끼면 스탯·공격력 %와
-              세트 효과가 중첩되어 단순 합보다 커집니다.
+              매물별 &lsquo;단독 증가&rsquo;는 게임이 표시하는 전투력증가와 맞췄고(장비 교체·세트 변화 포함),
+              세트 효과는 그 안에 이미 들어간 몫을 빼고 여러 개를 같이 살 때 새로 켜지는 단계만 더합니다.
             </p>
           </div>
 
