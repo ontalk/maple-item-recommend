@@ -223,6 +223,8 @@ export interface AuctionPlanEvaluation {
   setPowerGain: number;
   /** 옵션을 읽지 못해 환산 주스탯으로 대체한 매물 이름 */
   approximated: string[];
+  /** 이 조합으로 새로 켜지는 세트 단계 */
+  activatedTiers: string[];
 }
 
 function scaleBag(bag: StatBag, factor: number): StatBag {
@@ -271,21 +273,16 @@ export function evaluateAuctionPlan(
   picks: AuctionPick[],
 ): AuctionPlanEvaluation {
   const nextSets = resolveSetBonuses(piecesFor(items, picks));
-  const unionSetBag = totalSetEffects(nextSets);
-
-  // 넥슨의 매물별 전투력증가는 "그 장비를 낄 때"의 세트 변화까지 이미 포함한다.
-  // 그래서 세트 효과를 통째로 또 더하면 이중 계산이 된다(1개만 골라도 총합이 더 커짐).
-  // 매물 하나씩 계산했을 때 이미 반영된 세트 효과를 빼고,
-  // 여러 매물을 같이 살 때 "새로 켜지는 단계"만 추가로 반영한다.
-  const accountedSetBag = mergeBags(
-    totalSetEffects(model.activeSets),
-    ...picks.map((pick) => totalSetEffects(resolveSetBonuses(piecesFor(items, [pick])))),
+  // 세트 효과는 "지금 착용 중인 장비 + 살 매물" 기준으로 다시 계산해 차이만 더한다.
+  // 아이템 하나만 사도 세트 단계가 바뀌면 그 효과를 받아야 하고,
+  // 이미 켜져 있던 단계는 차감되어 중복으로 들어가지 않는다.
+  const currentTiers = new Set(
+    model.activeSets.flatMap((set) => set.tiers.map((count) => `${set.name} ${count}세트`)),
   );
-  const setBag: StatBag = {};
-  for (const [key, value] of Object.entries(unionSetBag)) {
-    const extra = Number(value || 0) - Number(accountedSetBag[key as StatKey] || 0);
-    if (extra > 0) setBag[key as StatKey] = extra;
-  }
+  const activatedTiers = nextSets
+    .flatMap((set) => set.tiers.map((count) => `${set.name} ${count}세트`))
+    .filter((label) => !currentTiers.has(label));
+  const setBag = mergeBags(totalSetEffects(nextSets), negateBag(totalSetEffects(model.activeSets)));
 
   const approximated: string[] = [];
   const perMainStat = marginalValues(model).perMainStat;
@@ -323,6 +320,7 @@ export function evaluateAuctionPlan(
     itemPowerGain,
     setPowerGain: totalGain - itemPowerGain,
     approximated,
+    activatedTiers,
   };
 }
 

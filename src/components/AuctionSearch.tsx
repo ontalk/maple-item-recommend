@@ -1502,6 +1502,12 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
                     {formatPower(combinedPlan.finalPower)}
                   </p>
                 )}
+                {combinedPlan && combinedPlan.activatedTiers.length > 0 && (
+                  <p className="mt-1 text-[11px] font-semibold text-amber-600">
+                    새로 켜지는 세트: {combinedPlan.activatedTiers.slice(0, 4).join(', ')}
+                    {combinedPlan.activatedTiers.length > 4 ? ` 외 ${combinedPlan.activatedTiers.length - 4}개` : ''}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">📊 평균 효율</p>
@@ -1512,8 +1518,8 @@ export function AuctionSearch({ benchmark, characterClass, currentCombatPower, c
             </div>
             <p className="mt-4 text-xs font-semibold leading-relaxed text-gray-500">
               최종 전투력은 고른 매물들의 옵션과 세트 효과를 현재 스탯에 한꺼번에 적용해 다시 계산한 값입니다.
-              매물별 &lsquo;단독 증가&rsquo;는 게임이 표시하는 전투력증가와 맞췄고(장비 교체·세트 변화 포함),
-              세트 효과는 그 안에 이미 들어간 몫을 빼고 여러 개를 같이 살 때 새로 켜지는 단계만 더합니다.
+              매물별 &lsquo;단독 증가&rsquo;는 게임이 표시하는 전투력증가에 맞춘 값이고,
+              세트 효과는 지금 내가 입고 있는 장비를 기준으로 새로 켜지는 단계만 더합니다.
             </p>
           </div>
 
