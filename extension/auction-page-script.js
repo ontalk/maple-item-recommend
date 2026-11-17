@@ -243,28 +243,55 @@
     return String(text || '').replace(/\s+/g, '').replace(/공격시/g, '');
   }
 
-  /** 행 안의 select 에서 문구가 맞는 옵션을 고른다. */
-  function selectOptionInRow(row, text) {
-    const select = row && row.querySelector('select');
-    if (!select) return false;
-    const compact = normalizeOptionText(text);
-    if (!compact) return false;
+  function findOption(select, compact) {
     const options = Array.from(select.options);
-    const option =
+    return (
       options.find((item) => normalizeOptionText(item.textContent) === compact) ||
       options.find((item) => normalizeOptionText(item.textContent).includes(compact)) ||
-      options.find((item) => compact.includes(normalizeOptionText(item.textContent)) && normalizeOptionText(item.textContent).length >= 2);
+      options.find(
+        (item) =>
+          compact.includes(normalizeOptionText(item.textContent)) &&
+          normalizeOptionText(item.textContent).length >= 2,
+      )
+    );
+  }
 
-    if (!option) {
-      console.warn(
-        `🎛️ 옵션 '${text}'을 패널에서 찾지 못했습니다. 선택지:`,
-        options.map((item) => (item.textContent || '').trim()).join(' | '),
-      );
-      return false;
+  /**
+   * 행 안의 select 에서 문구가 맞는 옵션을 고른다.
+   * 잠재능력 행처럼 드롭다운이 두 개(합산 방식 + 옵션)인 경우가 있어서
+   * 첫 번째 셀렉트를 무조건 쓰지 않고, 해당 옵션이 실제로 들어 있는 셀렉트를 고른다.
+   */
+  function selectOptionInRow(row, text) {
+    if (!row) return false;
+    const compact = normalizeOptionText(text);
+    if (!compact) return false;
+    const selects = Array.from(row.querySelectorAll('select'));
+    if (!selects.length) return false;
+
+    for (const select of selects) {
+      const option = findOption(select, compact);
+      if (option) {
+        setSelectValue(select, option.value);
+        return true;
+      }
     }
 
-    setSelectValue(select, option.value);
-    return true;
+    console.warn(
+      `🎛️ 옵션 '${text}'을 패널에서 찾지 못했습니다. 선택지:`,
+      selects.map((select) => Array.from(select.options).map((item) => (item.textContent || '').trim()).join(' | ')).join(' // '),
+    );
+    return false;
+  }
+
+  /** 행 안에서 실제로 '옵션'이 선택된 셀렉트를 찾는다(합산/각각 드롭다운 제외). */
+  function currentOptionText(row) {
+    const selects = Array.from((row && row.querySelectorAll('select')) || []);
+    for (const select of selects) {
+      const option = Array.from(select.options).find((item) => item.value === select.value);
+      const text = option ? String(option.textContent || '').trim() : '';
+      if (text && !/^(합산|각각|선택 ?안 ?함)$/.test(text.replace(/\s+/g, ''))) return text;
+    }
+    return '';
   }
 
   /** 옥션 잠재능력처럼 '+' 버튼으로 조건을 추가해야 반영되는 UI를 눌러 준다. */
@@ -416,12 +443,9 @@
       if (filters.scrollOption) optionRows.push(['주문서 강화', /주문서 강화/, /잔여/]);
       for (const [label, pattern, exclude] of optionRows) {
         const row = filterRowOf(pattern, exclude, true);
-        const select = row && row.querySelector('select');
         const input = row && Array.from(row.querySelectorAll('input')).find((element) => !element.disabled);
-        const chosen = select
-          ? (Array.from(select.options).find((item) => item.value === select.value) || {}).textContent
-          : undefined;
-        if (!chosen || chosen.includes('선택')) {
+        const chosen = currentOptionText(row);
+        if (!chosen) {
           console.warn(`🎛️ ${label} 필터가 선택되지 않았습니다(현재값: ${chosen || '없음'}).`);
         } else {
           console.log(`🎛️ ${label} 필터 확인: ${String(chosen).trim()} / 최소 ${input ? input.value : '없음'}`);

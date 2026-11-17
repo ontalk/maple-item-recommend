@@ -15,7 +15,7 @@ import {
 import { getAllEquipmentOptions, type EquipmentOption } from '@/lib/equipment-database';
 import { buildCombatModel, formatPower, type FinalStats } from '@/lib/combat-power';
 import { evaluateAuctionPlan, type AuctionPick } from '@/lib/item-planner';
-import { parseListingStats } from '@/lib/auction-listing';
+import { listingOptionValue, parseListingStats } from '@/lib/auction-listing';
 
 interface EquipmentSearchResult {
   part: string;
@@ -343,6 +343,20 @@ function matchesAuctionFilter(item: AuctionRawItem, filters: AuctionItemFilter, 
   if (!ignoreEnhancementGrades && minAdditionalPotentialGrade > 0 && (additionalPotentialGrade === undefined || additionalPotentialGrade < minAdditionalPotentialGrade)) return false;
   if (minCuttableCount > 0 && cuttableCount !== undefined && cuttableCount < minCuttableCount) return false;
   if (maxCuttableCount > 0 && cuttableCount !== undefined && cuttableCount > maxCuttableCount) return false;
+
+  // 옵션 조건은 공식 패널이 못 걸러도 결과가 조건과 맞도록 여기서 한 번 더 검사한다.
+  // (툴팁에서 값을 못 읽은 매물은 확인 불가로 보고 제외한다.)
+  const optionChecks: Array<['potential' | 'additionalPotential' | 'exOption', string, number]> = [
+    ['potential', filters.potentialOption || '', toNumber(filters.minPotentialOptionValue)],
+    ['additionalPotential', filters.additionalPotentialOption || '', toNumber(filters.minAdditionalPotentialOptionValue)],
+    ['exOption', filters.exOption || '', toNumber(filters.minExOptionValue)],
+  ];
+  for (const [source, option, min] of optionChecks) {
+    if (!option || min <= 0) continue;
+    const value = listingOptionValue(item, source, option);
+    if (!Number.isFinite(value) || value < min) return false;
+  }
+
   return true;
 }
 

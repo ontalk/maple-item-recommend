@@ -89,6 +89,58 @@ function pickFromMaps(maps: Array<Record<string, number> | undefined>, keywords:
   return undefined;
 }
 
+/** 옥션 잠재능력 옵션 문구가 툴팁 줄에 해당하는지 */
+function lineMatchesOption(line: string, option: string): boolean {
+  const compact = line.replace(/\s+/g, '');
+  switch (option) {
+    case '보스 몬스터 데미지':
+      return /보스/.test(compact) && /데미지/.test(compact);
+    case '크리티컬 데미지':
+      return /크리티컬데미지|크뎀/.test(compact);
+    case '방어율 무시':
+      return /방어율무시|방무/.test(compact);
+    case '데미지':
+      return /데미지/.test(compact) && !/보스|크리티컬|최종/.test(compact);
+    case '최대 HP':
+      return /최대HP|최대체력/.test(compact);
+    case '최대 MP':
+      return /최대MP|최대마나/.test(compact);
+    case '올스탯':
+      return /올스탯|모든능력치/.test(compact);
+    case '마력':
+      return /마력/.test(compact) && !/공격력/.test(compact);
+    case '공격력':
+      return /공격력/.test(compact) && !/마력/.test(compact);
+    default:
+      return /^[A-Z]+$/.test(option)
+        ? new RegExp(`(^|[^A-Z])${option}\\s*(?:[:=]\\s*)?\\+?\\s*\\d`, 'i').test(line)
+        : false;
+  }
+}
+
+/**
+ * 툴팁의 잠재/에디/추가옵션 줄에서 특정 옵션 수치를 합산한다(로컬 조건 검사용).
+ * 찾지 못하면 NaN — 호출쪽은 '확인 불가'로 보고 조건을 통과시키지 않는다.
+ */
+export function listingOptionValue(
+  item: AuctionRawItem,
+  source: 'potential' | 'additionalPotential' | 'exOption',
+  option: string,
+): number {
+  const entries = item.toolTip?.upgradeInfo?.[source]?.entries ?? [];
+  let total = 0;
+  let found = false;
+  for (const entry of entries) {
+    const text = entryToText(entry).trim();
+    if (!text || !lineMatchesOption(text, option)) continue;
+    const extra = numericExtra(text);
+    if (!extra) continue;
+    total += extra.value;
+    found = true;
+  }
+  return found ? total : Number.NaN;
+}
+
 export function parseListingStats(
   item: AuctionRawItem,
   options: { mainKey: string; attackLabel: string },
